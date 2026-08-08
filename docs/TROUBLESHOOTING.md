@@ -41,6 +41,47 @@ nella scheda telive coincida con quella su cui il decoder invia — sono lo
 stesso campo, quindi il caso tipico è un'altra istanza di telive rimasta
 aperta che tiene la porta.
 
+## Errori di compilazione
+
+### `telive_receiver.h: unknown type name 'time_t'`
+
+`telive_receiver.h` dichiara campi `time_t` ma include solo gli header di
+libxml2 e `stdint.h`. Finora bastava, perché libxml2 tirava dentro `<time.h>`
+per conto suo; dalla 2.12 non più. Il guaio si vede perché il Makefile di
+telive compila anche l'header da solo (`-c $^` si espande a `.c` **e** `.h`):
+il `.c` se la cava, perché include `<sys/types.h>`, l'header isolato no.
+
+L'installer compila telive con `-include time.h`, che antepone l'header a ogni
+unità di traduzione e risolve il caso. Se vedi ancora questo errore, stai
+usando una versione dell'installer precedente: aggiorna il repository e
+rilancia `./install.sh`.
+
+Compilando telive a mano nella sua directory l'errore si ripresenta, perché il
+flag non c'è. In quel caso:
+
+```sh
+make CC="gcc -include time.h"
+```
+
+### `libxml/nanohttp.h: No such file or directory`
+
+telive usa il modulo `nanohttp` di libxml2 per il controllo XMLRPC del
+ricevitore. È deprecato dalla 2.12 e **rimosso dalla 2.14**: su quelle
+versioni telive non compila. L'installer se ne accorge prima di iniziare e lo
+dice esplicitamente. Serve una correzione a monte, in telive.
+
+### La build fallisce con altri errori su Ubuntu recenti
+
+GCC 14 (Ubuntu 25.04 in poi) trasforma in errori quelli che prima erano
+warning: dichiarazioni implicite di funzione, `int` impliciti, conversioni di
+puntatore incompatibili, `return` senza valore. I sorgenti upstream, scritti
+fra il 2011 e il 2015, ne contengono. L'installer prova i corrispondenti flag
+`-Wno-error=` sul compilatore in uso e applica quelli supportati — due
+esistono solo da GCC 14 e GCC 13 li rifiuta, per questo vengono sondati invece
+che dati per scontati.
+
+I log completi sono in `~/.local/share/osmotetra/src/*/build.log`.
+
 ## Sintomi frequenti
 
 ### «La porta UDP 7379 è già occupata»

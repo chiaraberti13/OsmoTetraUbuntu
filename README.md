@@ -376,6 +376,31 @@ timeout 3 socat -u UDP-RECV:42001 - | wc -c
 Start with `osmotetra check`. If everything is green and still nothing
 arrives, work backwards along the chain.
 
+**Build errors**
+
+- **`telive_receiver.h: unknown type name 'time_t'`**: `telive_receiver.h`
+  declares `time_t` fields but only includes libxml2's headers and
+  `stdint.h`. That used to be enough because libxml2 pulled `<time.h>` in by
+  itself; since 2.12 it no longer does. The installer builds telive with
+  `-include time.h`, which fixes it. If you still see this, you are on an
+  older version of the installer — update the repository and re-run
+  `./install.sh`. Building telive by hand in its own directory reproduces the
+  error, because the flag is not there: use `make CC="gcc -include time.h"`.
+- **`libxml/nanohttp.h: No such file or directory`**: telive uses libxml2's
+  `nanohttp` module for XMLRPC receiver control. It is deprecated since 2.12
+  and **removed in 2.14**, so telive will not build against those versions.
+  The installer detects this before starting and says so. Fixing it needs a
+  change upstream in telive.
+- **Other build errors on recent Ubuntu**: GCC 14 (Ubuntu 25.04 onwards) turns
+  what used to be warnings into errors — implicit function declarations,
+  implicit `int`, incompatible pointer conversions, `return` without a value.
+  The upstream sources, written between 2011 and 2015, contain those. The
+  installer probes the matching `-Wno-error=` flags against your compiler and
+  applies the supported ones. Full logs are in
+  `~/.local/share/osmotetra/src/*/build.log`.
+
+**Runtime problems**
+
 - **«La porta UDP 7379 è già occupata» (port already in use)**: a `telive` from
   an earlier session is still alive, usually because its window was closed
   abruptly. `pkill -x telive` and try again.
@@ -842,6 +867,31 @@ timeout 3 socat -u UDP-RECV:42001 - | wc -c
 
 Si parte sempre da `osmotetra check`. Se è tutto verde e comunque non arriva
 niente, si procede a ritroso lungo la catena.
+
+**Errori di compilazione**
+
+- **`telive_receiver.h: unknown type name 'time_t'`**: `telive_receiver.h`
+  dichiara campi `time_t` ma include solo gli header di libxml2 e `stdint.h`.
+  Finora bastava, perché libxml2 tirava dentro `<time.h>` per conto suo; dalla
+  2.12 non più. L'installer compila telive con `-include time.h`, che risolve.
+  Se vedi ancora questo errore stai usando una versione precedente
+  dell'installer: aggiorna il repository e rilancia `./install.sh`. Compilando
+  telive a mano nella sua directory l'errore si ripresenta, perché il flag non
+  c'è: usa `make CC="gcc -include time.h"`.
+- **`libxml/nanohttp.h: No such file or directory`**: telive usa il modulo
+  `nanohttp` di libxml2 per il controllo XMLRPC del ricevitore. È deprecato
+  dalla 2.12 e **rimosso dalla 2.14**: su quelle versioni telive non compila.
+  L'installer se ne accorge prima di iniziare e lo dice. Serve una correzione
+  a monte, in telive.
+- **Altri errori di compilazione su Ubuntu recenti**: GCC 14 (Ubuntu 25.04 in
+  poi) trasforma in errori quelli che prima erano warning — dichiarazioni
+  implicite di funzione, `int` impliciti, conversioni di puntatore
+  incompatibili, `return` senza valore. I sorgenti upstream, scritti fra il
+  2011 e il 2015, ne contengono. L'installer prova i corrispondenti flag
+  `-Wno-error=` sul compilatore in uso e applica quelli supportati. I log
+  completi sono in `~/.local/share/osmotetra/src/*/build.log`.
+
+**Problemi in esecuzione**
 
 - **«La porta UDP 7379 è già occupata»**: un `telive` di una sessione
   precedente è rimasto vivo, in genere perché la sua finestra è stata chiusa in

@@ -63,17 +63,19 @@ flag non c'è. In quel caso:
 make CC="gcc -include time.h"
 ```
 
-### `timeout_receivers`: `too many arguments to function`
+### `too many arguments to function 'timeout_receivers'`
 
-Da GCC 15 lo standard predefinito è GNU C23. In C23 una funzione dichiarata
-con `()` non accetta argomenti, mentre nel C storico usato da telive la stessa
-sintassi lasciava la lista degli argomenti non specificata. Il sorgente upstream
-dichiara `timeout_receivers()` ma la chiama con un argomento inutilizzato, e il
-nuovo compilatore interrompe quindi la build.
+Da GCC 15 (Ubuntu 25.10 in poi) lo standard predefinito è GNU C23, che cambia
+il significato di `()` in una definizione di funzione: non più «lista di
+parametri non specificata» ma «nessun parametro». telive definisce
+`void timeout_receivers()` (telive.c:857) e la chiama passando `grxml_url`
+(telive.c:1529), argomento che la funzione ignora. Sotto C23 il compilatore
+interrompe la build. Non è un warning declassabile: è una violazione di
+vincolo, quindi nessun `-Wno-error` la toglie.
 
-L'installer seleziona esplicitamente `-std=gnu17` per telive, mantenendo la
-semantica con cui il programma è stato scritto senza modificare i sorgenti
-clonati. Rilancia `./install.sh`: non occorre intervenire a mano su `telive.c`.
+L'installer fissa `-std=gnu17`, che conserva la semantica con cui il programma
+è stato scritto, senza modificare i sorgenti clonati e senza nascondere errori
+nuovi. Rilancia `./install.sh`: non occorre intervenire a mano su `telive.c`.
 
 ### `libxml/nanohttp.h: No such file or directory`
 
@@ -81,18 +83,6 @@ telive usa il modulo `nanohttp` di libxml2 per il controllo XMLRPC del
 ricevitore. È deprecato dalla 2.12 e **rimosso dalla 2.14**: su quelle
 versioni telive non compila. L'installer se ne accorge prima di iniziare e lo
 dice esplicitamente. Serve una correzione a monte, in telive.
-
-### `too many arguments to function 'timeout_receivers'`
-
-GCC 15 (Ubuntu 25.10 in poi) usa `-std=gnu23` di default, e il C23 cambia il
-significato di `()` in una definizione di funzione: non più «parametri non
-specificati» ma «nessun parametro». telive definisce `void timeout_receivers()`
-(telive.c:857) e la chiama con un argomento (telive.c:1529), che il C23
-rifiuta. Non è un warning declassabile: è una violazione di vincolo, quindi
-nessun `-Wno-error` la toglie.
-
-L'installer compila con `-std=gnu17`, che ripristina la semantica precedente.
-Se vedi questo errore, aggiorna il repository e rilancia `./install.sh`.
 
 ### La build fallisce con altri errori su Ubuntu recenti
 

@@ -103,14 +103,12 @@ main() {
 	# la compilazione isolata sia qualunque altro file includa telive_receiver.h
 	# senza time.h, e non richiede di modificare i sorgenti upstream (che
 	# verrebbero comunque sovrascritti al prossimo aggiornamento).
-	# GCC 15 usa gnu23 per default. In C23 una dichiarazione come
-	# ``void timeout_receivers()`` significa esplicitamente "nessun argomento",
-	# mentre questo sorgente C storico la invoca passando grxml_url (ignorato
-	# dalla funzione). Con gnu17 le parentesi vuote conservano la semantica C
-	# originale di lista di parametri non specificata. Fissare lo standard rende
-	# quindi la build indipendente dalla versione del compilatore, senza
-	# modificare la working tree clonata e senza nascondere errori nuovi.
-	local cc_flags; cc_flags="-std=gnu17 $(legacy_c_flags) -include time.h"
+	#
+	# Lo standard del linguaggio è fissato a gnu17 dentro legacy_c_flags(), che
+	# serve entrambi i progetti: serve anche qui, perché GCC 15 passa a gnu23 e
+	# in C23 `void timeout_receivers()` significa "nessun parametro" invece di
+	# "parametri non specificati", mentre telive la chiama passando grxml_url.
+	local cc_flags; cc_flags="$(legacy_c_flags) -include time.h"
 	log_info "Compilo (CC=\"${CC:-gcc} $cc_flags\")..."
 
 	make -C "$SRCDIR" clean >/dev/null 2>&1 || true

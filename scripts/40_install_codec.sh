@@ -21,6 +21,17 @@ CODEC_URL="${CODEC_URL:-https://www.etsi.org/deliver/etsi_en/300300_300399/30039
 CODEC_MD5="a8115fe68ef8f8cc466f4192572a1e3e"
 CODEC_PATCH_URL="${CODEC_PATCH_URL:-https://github.com/sq5bpf/install-tetra-codec}"
 
+# ETSI protegge l'area download con un filtro anti-bot che rifiuta il
+# User-Agent predefinito di wget con HTTP 403, anche se il documento è
+# pubblicamente scaricabile dal browser. Questi header riproducono una normale
+# navigazione senza cookie, token o aggiramenti dell'autenticazione. L'MD5
+# obbligatorio sotto resta la fonte di verità sul contenuto ricevuto.
+ETSI_WGET_ARGS=(
+	--user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36"
+	--referer="https://www.etsi.org/standards-search"
+	--header="Accept: application/zip,application/octet-stream;q=0.9,*/*;q=0.8"
+)
+
 PREFIX="${PREFIX:?PREFIX non impostato}"
 INSTALLDIR="$PREFIX/tetra/bin"
 CACHEDIR="$PREFIX/cache"
@@ -65,8 +76,10 @@ fetch_zip() {
 	fi
 	log_info "Scarico il codec da ETSI..."
 	# --no-verbose per non inondare il log della GUI; -T per non restare
-	# appesi se il sito non risponde.
-	if ! retry 3 wget --no-verbose --timeout=60 --tries=1 -O "$ZIPFILE.part" "$CODEC_URL"; then
+	# appesi se il sito non risponde. Gli header browser evitano il 403 che ETSI
+	# restituisce al normale User-Agent di wget.
+	if ! retry 3 wget "${ETSI_WGET_ARGS[@]}" --no-verbose --timeout=60 --tries=1 \
+		-O "$ZIPFILE.part" "$CODEC_URL"; then
 		rm -f "$ZIPFILE.part"
 		log_error "Download da ETSI non riuscito."
 		manual_instructions

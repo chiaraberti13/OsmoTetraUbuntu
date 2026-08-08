@@ -167,6 +167,16 @@ L'audio richiede il codec ACELP, che non è redistribuibile:
 ./install.sh --with-codec
 ```
 
+Se il download ETSI termina con **HTTP 403**, aggiorna prima il repository e
+rilancia il comando: le versioni recenti dell'installer inviano gli header di
+una normale navigazione, richiesti dal filtro anti-bot del sito. Il file viene
+comunque accettato solo dopo la verifica dell'MD5 atteso.
+
+Se ETSI continua a rifiutare la rete in uso, apri nel browser l'URL mostrato
+dall'installer, copia lo ZIP nel percorso della cache indicato nel messaggio e
+rilancia `scripts/40_install_codec.sh`. Non rinominare o estrarre lo ZIP: lo
+script ne verifica l'integrità prima di applicare la patch e compilarlo.
+
 Verifica poi che in telive non siano attivi i silenziamenti: `M` silenzia
 tutto, `m` silenzia gli SSI sconosciuti — e `m` è **attivo di default** nella
 configurazione iniziale. Prova la catena audio da sola:

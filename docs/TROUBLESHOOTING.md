@@ -63,6 +63,18 @@ flag non c'è. In quel caso:
 make CC="gcc -include time.h"
 ```
 
+### `timeout_receivers`: `too many arguments to function`
+
+Da GCC 15 lo standard predefinito è GNU C23. In C23 una funzione dichiarata
+con `()` non accetta argomenti, mentre nel C storico usato da telive la stessa
+sintassi lasciava la lista degli argomenti non specificata. Il sorgente upstream
+dichiara `timeout_receivers()` ma la chiama con un argomento inutilizzato, e il
+nuovo compilatore interrompe quindi la build.
+
+L'installer seleziona esplicitamente `-std=gnu17` per telive, mantenendo la
+semantica con cui il programma è stato scritto senza modificare i sorgenti
+clonati. Rilancia `./install.sh`: non occorre intervenire a mano su `telive.c`.
+
 ### `libxml/nanohttp.h: No such file or directory`
 
 telive usa il modulo `nanohttp` di libxml2 per il controllo XMLRPC del
@@ -154,6 +166,18 @@ L'audio richiede il codec ACELP, che non è redistribuibile:
 ```sh
 ./install.sh --with-codec
 ```
+
+Se il download ETSI termina con **HTTP 403**, aggiorna prima il repository e
+rilancia il comando: le versioni recenti dell'installer inviano gli header di
+una normale navigazione, richiesti dal filtro anti-bot del sito. Il file viene
+comunque accettato solo dopo la verifica dell'MD5 atteso.
+
+Se ETSI continua a rifiutare la rete in uso, apri nel browser l'URL mostrato
+dall'installer e lascia lo ZIP in `~/Downloads` (anche `~/Scaricati` è
+riconosciuta), poi rilancia `scripts/40_install_codec.sh`. Per un percorso
+diverso usa `CODEC_ARCHIVE=/percorso/al/file.zip`. Non estrarre lo ZIP: lo
+script lo importa con permessi privati e soltanto se l'MD5 corrisponde, prima di
+applicare la patch e compilarlo.
 
 Verifica poi che in telive non siano attivi i silenziamenti: `M` silenzia
 tutto, `m` silenzia gli SSI sconosciuti — e `m` è **attivo di default** nella

@@ -195,9 +195,31 @@ Tre strade, dalla meno invasiva:
    `gr-osmosdr` include la sorgente `rtl_tcp`, quindi funziona senza modifiche.
    L'indirizzo del Mac visto dalla VM è di norma il gateway:
    `ip route | awk '/default/ {print $3}'`.
-   Nota che i campioni grezzi passano dalla rete: a 2 Ms/s sono circa
-   32 Mbit/s, che su rete virtuale locale non è un problema, ma conviene
-   restare su un solo canale.
+
+   Prima di aprire l'applicazione conviene verificare che i campioni arrivino:
+
+   ```sh
+   timeout 3 socat -u TCP:INDIRIZZO_DELL_HOST:1234 - | wc -c
+   ```
+
+   Deve stampare qualche milione di byte. Se stampa 0 o va in errore, il
+   problema è la rete o il firewall dell'host, non OsmoTetra.
+
+   Due cose da sapere su questa modalità:
+
+   - **La correzione in ppm viaggia come numero intero.** Il protocollo
+     `rtl_tcp` la trasmette in un campo a 32 bit senza decimali: impostando
+     12,5 ppm nell'interfaccia, alla chiavetta arriva 12. A 400 MHz mezzo ppm
+     sono circa 200 Hz, che il demodulatore recupera, ma non stupirti se il
+     valore non torna esatto. Con la chiavetta collegata direttamente i
+     decimali funzionano.
+   - **Il guadagno IF non ha effetto**: il server dichiara zero guadagni IF
+     per il tuner R820T, quindi quel campo viene ignorato. Regola solo il
+     guadagno RF.
+
+   I campioni grezzi passano dalla rete: a 2 Ms/s sono circa 32 Mbit/s, che su
+   rete virtuale locale non è un problema, ma conviene restare su un solo
+   canale.
 
 2. **Usa un hypervisor che inoltra l'USB**: UTM con backend QEMU (non «Apple
    Virtualization»), oppure Parallels Desktop o VMware Fusion.

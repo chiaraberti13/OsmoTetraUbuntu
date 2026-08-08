@@ -249,6 +249,8 @@ class Pipeline:
                     f"La porta UDP {port} ({what}) è già occupata: "
                     f"un'altra istanza è in esecuzione?"
                 )
+
+        problems.extend(check_rtl_tcp(self.cfg))
         return problems
 
     def _ports_to_check(self) -> Iterable[tuple[int, str]]:
@@ -481,6 +483,59 @@ class Pipeline:
 
 
 # -- funzioni di supporto ---------------------------------------------------
+
+
+def rtl_tcp_endpoint(device_args: str) -> tuple[str, int] | None:
+    """Estrae host e porta da una stringa di dispositivo ``rtl_tcp=host:porta``.
+
+    Restituisce None se il dispositivo non è un rtl_tcp.
+    """
+    for token in device_args.split():
+        if not token.startswith("rtl_tcp="):
+            continue
+        value = token[len("rtl_tcp="):]
+        host, _, port = value.rpartition(":")
+        if not host:
+            host, port = value, "1234"
+        try:
+            return host, int(port)
+        except ValueError:
+            return host, 1234
+    return None
+
+
+def check_rtl_tcp(cfg, timeout: float = 3.0) -> list[str]:
+    """Verifica che un server rtl_tcp remoto sia raggiungibile.
+
+    Con la chiavetta collegata a un'altra macchina — il caso tipico è Ubuntu
+    dentro una macchina virtuale il cui hypervisor non inoltra l'USB — il
+    server va avviato là e deve restare in esecuzione. Se non lo è,
+    gr-osmosdr fallisce con un errore che non spiega niente: meglio dirlo qui,
+    con la diagnosi giusta.
+    """
+    endpoint = rtl_tcp_endpoint(cfg.sdr.device_args)
+    if endpoint is None or cfg.sdr.source != "osmosdr":
+        return []
+
+    host, port = endpoint
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return []
+    except ConnectionRefusedError:
+        return [
+            f"Nessun server rtl_tcp in ascolto su {host}:{port} (connessione "
+            f"rifiutata). Il pacchetto arriva, ma là non ascolta nessuno: "
+            f"avvia 'rtl_tcp -a 0.0.0.0 -p {port}' sulla macchina a cui è "
+            f"collegata la chiavetta, e lascia quella finestra aperta."
+        ]
+    except socket.timeout:
+        return [
+            f"{host}:{port} non risponde entro {timeout:.0f}s. Il server "
+            f"rtl_tcp non è raggiungibile: controlla il firewall della "
+            f"macchina che lo esegue e che l'indirizzo sia quello giusto."
+        ]
+    except OSError as exc:
+        return [f"Impossibile raggiungere il server rtl_tcp {host}:{port}: {exc}"]
 
 
 def _udp_port_busy(port: int, host: str = "127.0.0.1") -> bool:

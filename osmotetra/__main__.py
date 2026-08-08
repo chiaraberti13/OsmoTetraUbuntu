@@ -62,6 +62,11 @@ def cmd_check(args) -> int:
 
     cfg = _load_config(args)
     problems = cfg.validate()
+    # Con la chiavetta su un'altra macchina (rtl_tcp) la raggiungibilità del
+    # server è una dipendenza a tutti gli effetti: va verificata qui, non
+    # scoperta a catena avviata.
+    from .pipeline import check_rtl_tcp
+    problems += check_rtl_tcp(cfg)
     warnings = cfg.warnings()
     if problems or warnings:
         print("\nConfigurazione")

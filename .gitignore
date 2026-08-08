@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Generati dall'installer / a runtime
+scripts/templates/*.out
+*.log
+*.kml
+*.cfile
+*.iq
+build/
+dist/

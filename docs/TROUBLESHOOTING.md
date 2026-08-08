@@ -63,6 +63,18 @@ flag non c'è. In quel caso:
 make CC="gcc -include time.h"
 ```
 
+### `timeout_receivers`: `too many arguments to function`
+
+Da GCC 15 lo standard predefinito è GNU C23. In C23 una funzione dichiarata
+con `()` non accetta argomenti, mentre nel C storico usato da telive la stessa
+sintassi lasciava la lista degli argomenti non specificata. Il sorgente upstream
+dichiara `timeout_receivers()` ma la chiama con un argomento inutilizzato, e il
+nuovo compilatore interrompe quindi la build.
+
+L'installer seleziona esplicitamente `-std=gnu17` per telive, mantenendo la
+semantica con cui il programma è stato scritto senza modificare i sorgenti
+clonati. Rilancia `./install.sh`: non occorre intervenire a mano su `telive.c`.
+
 ### `libxml/nanohttp.h: No such file or directory`
 
 telive usa il modulo `nanohttp` di libxml2 per il controllo XMLRPC del

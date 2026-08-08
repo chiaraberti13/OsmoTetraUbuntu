@@ -23,6 +23,10 @@ from .widgets import KHzSpinBox, MHzSpinBox, hint
 DEVICE_PRESETS = [
     ("RTL-SDR (prima chiavetta)", "rtl=0"),
     ("RTL-SDR (seconda chiavetta)", "rtl=1"),
+    # Utile quando la chiavetta non è raggiungibile da qui: dentro una VM il
+    # cui hypervisor non inoltra l'USB, la si lascia al sistema ospitante che
+    # esegue "rtl_tcp -a 0.0.0.0 -p 1234", e i campioni arrivano via rete.
+    ("RTL-SDR via rete (rtl_tcp)", "rtl_tcp=127.0.0.1:1234"),
     ("HackRF", "hackrf=0"),
     ("Airspy", "airspy=0"),
     ("SDRplay (richiede i driver del produttore)", "sdrplay=0"),

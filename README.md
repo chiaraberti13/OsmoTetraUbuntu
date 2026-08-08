@@ -431,6 +431,17 @@ arrives, work backwards along the chain.
   Python (pyenv, conda, a source build) is shadowing the system one. The
   application normally detects this by itself; to force the choice,
   `OSMOTETRA_PYTHON=/usr/bin/python3.12 osmotetra`.
+- **The dongle does not show up at all, inside a virtual machine**: check with
+  `lsusb | grep -i realtek` first. If nothing appears, no driver is missing —
+  the device simply is not reaching the guest. Apple's **Virtualization**
+  framework (what UTM uses in «Apple Virtualization» mode, recognisable from a
+  hostname like `ubuntu-Apple-Virtualization-Generic-Platform`) does not
+  forward arbitrary USB devices, and nothing on the Ubuntu side can change
+  that. Either keep the dongle on the host and feed samples over the network —
+  run `rtl_tcp -a 0.0.0.0 -p 1234` on the host, then set the device field to
+  `rtl_tcp=HOST_ADDRESS:1234`, which `gr-osmosdr` supports natively — or use a
+  hypervisor that does forward USB (UTM with the QEMU backend, Parallels,
+  VMware Fusion), or run Ubuntu on real hardware.
 - **`usb_claim_interface error -6`, or the device will not open**: the DVB-T
   kernel driver grabbed the dongle first. Run
   `sudo ~/.local/share/osmotetra/lib/scripts/50_sdr_udev.sh`, then unplug and
@@ -939,6 +950,18 @@ niente, si procede a ritroso lungo la catena.
   Python (pyenv, conda, una build da sorgente) occupa il PATH al posto di
   quello di sistema. L'applicazione di norma se ne accorge da sola; per forzare
   la scelta, `OSMOTETRA_PYTHON=/usr/bin/python3.12 osmotetra`.
+- **La chiavetta non compare per niente, dentro una macchina virtuale**:
+  verifica prima con `lsusb | grep -i realtek`. Se non compare niente non
+  manca nessun driver: il dispositivo non sta arrivando al sistema ospite. Il
+  framework **Apple Virtualization** (quello che UTM usa in modalità «Apple
+  Virtualization», riconoscibile da un hostname tipo
+  `ubuntu-Apple-Virtualization-Generic-Platform`) non inoltra i dispositivi USB
+  arbitrari, e nessuna configurazione lato Ubuntu può rimediare. O lasci la
+  chiavetta al sistema ospitante e passi i campioni via rete — avvia
+  `rtl_tcp -a 0.0.0.0 -p 1234` sull'host e scrivi come dispositivo
+  `rtl_tcp=INDIRIZZO_HOST:1234`, che `gr-osmosdr` supporta nativamente —
+  oppure usi un hypervisor che inoltra l'USB (UTM con backend QEMU, Parallels,
+  VMware Fusion), oppure esegui Ubuntu su hardware vero.
 - **`usb_claim_interface error -6`, oppure il dispositivo non si apre**: il
   driver DVB-T del kernel ha preso la chiavetta prima. Esegui
   `sudo ~/.local/share/osmotetra/lib/scripts/50_sdr_udev.sh`, poi scollega e

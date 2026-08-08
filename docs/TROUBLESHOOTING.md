@@ -158,6 +158,52 @@ forzare la scelta:
 OSMOTETRA_PYTHON=/usr/bin/python3.12 osmotetra
 ```
 
+### La chiavetta non compare per niente (Ubuntu dentro una macchina virtuale)
+
+Prima di cercare driver, verifica se il sistema la vede proprio:
+
+```sh
+lsusb | grep -i realtek     # atteso: Realtek RTL2838 DVB-T (0bda:2838)
+rtl_test -t
+```
+
+Se `lsusb` non mostra niente, non manca nessun driver: il dispositivo non sta
+arrivando al sistema. Dentro una VM la chiavetta va **inoltrata** al sistema
+ospite, e non tutti gli hypervisor lo sanno fare.
+
+In particolare, il framework **Apple Virtualization** (quello che UTM usa in
+modalità «Apple Virtualization», e che si riconosce da un hostname tipo
+`ubuntu-Apple-Virtualization-Generic-Platform`) **non inoltra i dispositivi USB
+arbitrari**: la chiavetta resta visibile solo a macOS. Nessuna configurazione
+lato Ubuntu può rimediare.
+
+Tre strade, dalla meno invasiva:
+
+1. **Lascia la chiavetta al sistema ospitante e passa i campioni via rete.**
+   Sul Mac installa `librtlsdr` (`brew install librtlsdr`) e avvia:
+
+   ```sh
+   rtl_tcp -a 0.0.0.0 -p 1234
+   ```
+
+   Poi, nella scheda Radio di OsmoTetra, scrivi come dispositivo:
+
+   ```
+   rtl_tcp=INDIRIZZO_DEL_MAC:1234
+   ```
+
+   `gr-osmosdr` include la sorgente `rtl_tcp`, quindi funziona senza modifiche.
+   L'indirizzo del Mac visto dalla VM è di norma il gateway:
+   `ip route | awk '/default/ {print $3}'`.
+   Nota che i campioni grezzi passano dalla rete: a 2 Ms/s sono circa
+   32 Mbit/s, che su rete virtuale locale non è un problema, ma conviene
+   restare su un solo canale.
+
+2. **Usa un hypervisor che inoltra l'USB**: UTM con backend QEMU (non «Apple
+   Virtualization»), oppure Parallels Desktop o VMware Fusion.
+
+3. **Esegui Ubuntu su hardware vero**, anche da chiavetta live.
+
 ### `usb_claim_interface error -6` oppure il dispositivo non si apre
 
 Il driver DVB-T del kernel ha preso la chiavetta prima di gr-osmosdr:

@@ -103,10 +103,39 @@ EOF
 	log_ok "Applicazione installata in $libdir"
 	log_ok "Launcher: $BINDIR/osmotetra"
 
+	warn_if_not_in_path
+}
+
+# Avvisa se il launcher non è raggiungibile, spiegando la causa giusta.
+#
+# Su Ubuntu il ~/.profile predefinito contiene già:
+#
+#     if [ -d "$HOME/.local/bin" ] ; then PATH="$HOME/.local/bin:$PATH" ; fi
+#
+# ma viene valutato al login. Se la directory non esisteva quando l'utente ha
+# fatto l'accesso — cioè quasi sempre, alla prima installazione — il PATH non
+# la contiene, e non la conterrà finché non si rientra. Suggerire di
+# "aggiungerlo a ~/.profile" sarebbe quindi un consiglio sbagliato: la riga
+# c'è già, e aggiungerne una seconda non risolve la sessione in corso.
+warn_if_not_in_path() {
 	case ":$PATH:" in
-		*":$BINDIR:"*) ;;
-		*) log_warn "$BINDIR non è nel PATH. Aggiungilo a ~/.profile:  export PATH=\"\$PATH:$BINDIR\"" ;;
+		*":$BINDIR:"*) return 0 ;;
 	esac
+
+	log_warn "$BINDIR non è ancora nel PATH di questa sessione."
+
+	if [ -f "$HOME/.profile" ] && grep -q '\.local/bin' "$HOME/.profile" 2>/dev/null; then
+		log_info "Il tuo ~/.profile lo aggiunge già al login, ma la directory è"
+		log_info "stata creata adesso: basta uscire e rientrare."
+	else
+		log_info "Per renderlo permanente:"
+		log_info "  echo 'export PATH=\"\$PATH:$BINDIR\"' >> ~/.profile"
+	fi
+
+	log_info "Per usarlo subito, senza uscire dalla sessione:"
+	log_info "  export PATH=\"\$PATH:$BINDIR\""
+	log_info "Oppure avvia l'applicazione dal menu, o con il percorso completo:"
+	log_info "  $BINDIR/osmotetra"
 }
 
 install_desktop_entry() {

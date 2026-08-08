@@ -70,6 +70,18 @@ ricevitore. È deprecato dalla 2.12 e **rimosso dalla 2.14**: su quelle
 versioni telive non compila. L'installer se ne accorge prima di iniziare e lo
 dice esplicitamente. Serve una correzione a monte, in telive.
 
+### `too many arguments to function 'timeout_receivers'`
+
+GCC 15 (Ubuntu 25.10 in poi) usa `-std=gnu23` di default, e il C23 cambia il
+significato di `()` in una definizione di funzione: non più «parametri non
+specificati» ma «nessun parametro». telive definisce `void timeout_receivers()`
+(telive.c:857) e la chiama con un argomento (telive.c:1529), che il C23
+rifiuta. Non è un warning declassabile: è una violazione di vincolo, quindi
+nessun `-Wno-error` la toglie.
+
+L'installer compila con `-std=gnu17`, che ripristina la semantica precedente.
+Se vedi questo errore, aggiorna il repository e rilancia `./install.sh`.
+
 ### La build fallisce con altri errori su Ubuntu recenti
 
 GCC 14 (Ubuntu 25.04 in poi) trasforma in errori quelli che prima erano
@@ -83,6 +95,24 @@ che dati per scontati.
 I log completi sono in `~/.local/share/osmotetra/src/*/build.log`.
 
 ## Sintomi frequenti
+
+### `osmotetra: command not found` subito dopo l'installazione
+
+`~/.local/bin` non è nel `PATH` della sessione in corso. Il `~/.profile`
+predefinito di Ubuntu lo aggiunge già, ma **solo se la directory esiste al
+momento del login**: alla prima installazione viene creata dopo, quindi il
+`PATH` la ignora fino al prossimo accesso.
+
+Le tre soluzioni, dalla più rapida alla più definitiva:
+
+```sh
+~/.local/bin/osmotetra                      # subito, con il percorso completo
+export PATH="$PATH:$HOME/.local/bin"        # per questa sessione
+```
+
+oppure esci e rientra, e da lì in poi funziona da solo. L'applicazione si
+avvia comunque dal menu («OsmoTetra»): la voce di menu usa il percorso
+assoluto e non dipende dal `PATH`.
 
 ### «La porta UDP 7379 è già occupata»
 

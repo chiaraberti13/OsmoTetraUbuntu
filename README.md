@@ -391,6 +391,13 @@ arrives, work backwards along the chain.
   and **removed in 2.14**, so telive will not build against those versions.
   The installer detects this before starting and says so. Fixing it needs a
   change upstream in telive.
+- **`too many arguments to function 'timeout_receivers'`**: GCC 15 (Ubuntu
+  25.10 onwards) defaults to `-std=gnu23`, and C23 changes what `()` means in a
+  function definition — no longer "unspecified parameters" but "no
+  parameters". telive defines `void timeout_receivers()` and calls it with an
+  argument, which C23 rejects. It is a constraint violation, not a warning, so
+  no `-Wno-error` removes it. The installer compiles with `-std=gnu17`, which
+  restores the old meaning. Update the repository and re-run `./install.sh`.
 - **Other build errors on recent Ubuntu**: GCC 14 (Ubuntu 25.04 onwards) turns
   what used to be warnings into errors — implicit function declarations,
   implicit `int`, incompatible pointer conversions, `return` without a value.
@@ -401,6 +408,14 @@ arrives, work backwards along the chain.
 
 **Runtime problems**
 
+- **`osmotetra: command not found` right after installing**: `~/.local/bin` is
+  not in this session's `PATH`. Ubuntu's stock `~/.profile` already adds it,
+  but **only if the directory exists at login time** — on a first install it is
+  created afterwards, so the `PATH` ignores it until you log in again. Run
+  `~/.local/bin/osmotetra` straight away, or
+  `export PATH="$PATH:$HOME/.local/bin"` for this session, or simply log out
+  and back in. The **OsmoTetra** menu entry works either way: it uses the
+  absolute path.
 - **«La porta UDP 7379 è già occupata» (port already in use)**: a `telive` from
   an earlier session is still alive, usually because its window was closed
   abruptly. `pkill -x telive` and try again.
@@ -883,6 +898,14 @@ niente, si procede a ritroso lungo la catena.
   dalla 2.12 e **rimosso dalla 2.14**: su quelle versioni telive non compila.
   L'installer se ne accorge prima di iniziare e lo dice. Serve una correzione
   a monte, in telive.
+- **`too many arguments to function 'timeout_receivers'`**: GCC 15 (Ubuntu
+  25.10 in poi) usa `-std=gnu23` di default, e il C23 cambia il significato di
+  `()` in una definizione di funzione: non più «parametri non specificati» ma
+  «nessun parametro». telive definisce `void timeout_receivers()` e la chiama
+  con un argomento, cosa che il C23 rifiuta. È una violazione di vincolo, non
+  un warning, quindi nessun `-Wno-error` la toglie. L'installer compila con
+  `-std=gnu17`, che ripristina la semantica precedente. Aggiorna il repository
+  e rilancia `./install.sh`.
 - **Altri errori di compilazione su Ubuntu recenti**: GCC 14 (Ubuntu 25.04 in
   poi) trasforma in errori quelli che prima erano warning — dichiarazioni
   implicite di funzione, `int` impliciti, conversioni di puntatore
@@ -893,6 +916,14 @@ niente, si procede a ritroso lungo la catena.
 
 **Problemi in esecuzione**
 
+- **`osmotetra: command not found` subito dopo l'installazione**:
+  `~/.local/bin` non è nel `PATH` di questa sessione. Il `~/.profile`
+  predefinito di Ubuntu lo aggiunge già, ma **solo se la directory esiste al
+  momento del login**: alla prima installazione viene creata dopo, quindi il
+  `PATH` la ignora fino al prossimo accesso. Usa subito
+  `~/.local/bin/osmotetra`, oppure `export PATH="$PATH:$HOME/.local/bin"` per
+  questa sessione, oppure esci e rientra. La voce di menu **OsmoTetra**
+  funziona comunque: usa il percorso assoluto.
 - **«La porta UDP 7379 è già occupata»**: un `telive` di una sessione
   precedente è rimasto vivo, in genere perché la sua finestra è stata chiusa in
   modo brusco. `pkill -x telive` e riprova.

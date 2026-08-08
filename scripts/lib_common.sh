@@ -226,6 +226,17 @@ report_build_failure() {
 # Attenzione: alcuni di questi nomi di warning esistono solo da GCC 14
 # (-Wreturn-mismatch, -Wdeclaration-missing-parameter-type) e GCC 13 li
 # rifiuta con un errore. Ogni flag va quindi provato sul compilatore in uso.
+#
+# Si fissa anche lo standard a gnu17. GCC 15 (Ubuntu 25.10 in poi) passa a
+# gnu23 di default, e il C23 cambia il significato di costrutti che questi
+# sorgenti usano: in particolare "()" in una definizione non vuol più dire
+# "parametri non specificati" ma "nessun parametro". telive definisce
+# `void timeout_receivers()` e la chiama con un argomento (telive.c:857 e
+# 1529): sotto C23 diventa l'errore "too many arguments to function", che
+# nessun -Wno-error può togliere perché è una violazione di vincolo, non un
+# warning. Lo stesso vale per bool/true/false diventati parole chiave.
+# Fissare lo standard una volta è più solido che rincorrere i singoli errori:
+# osmo-tetra oggi supera il C23, ma per fortuna, non per progetto.
 LEGACY_C_FLAGS_CACHE=""
 legacy_c_flags() {
 	if [ -n "$LEGACY_C_FLAGS_CACHE" ]; then
@@ -235,7 +246,8 @@ legacy_c_flags() {
 	local cc="${CC:-gcc}" probe out="" f
 	local tmp; tmp="$(mktemp -d)"
 	printf 'int main(void){return 0;}\n' > "$tmp/probe.c"
-	for f in -Wno-error=implicit-function-declaration \
+	for f in -std=gnu17 \
+	         -Wno-error=implicit-function-declaration \
 	         -Wno-error=implicit-int \
 	         -Wno-error=int-conversion \
 	         -Wno-error=incompatible-pointer-types \

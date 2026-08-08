@@ -173,9 +173,11 @@ una normale navigazione, richiesti dal filtro anti-bot del sito. Il file viene
 comunque accettato solo dopo la verifica dell'MD5 atteso.
 
 Se ETSI continua a rifiutare la rete in uso, apri nel browser l'URL mostrato
-dall'installer, copia lo ZIP nel percorso della cache indicato nel messaggio e
-rilancia `scripts/40_install_codec.sh`. Non rinominare o estrarre lo ZIP: lo
-script ne verifica l'integrità prima di applicare la patch e compilarlo.
+dall'installer e lascia lo ZIP in `~/Downloads` (anche `~/Scaricati` è
+riconosciuta), poi rilancia `scripts/40_install_codec.sh`. Per un percorso
+diverso usa `CODEC_ARCHIVE=/percorso/al/file.zip`. Non estrarre lo ZIP: lo
+script lo importa con permessi privati e soltanto se l'MD5 corrisponde, prima di
+applicare la patch e compilarlo.
 
 Verifica poi che in telive non siano attivi i silenziamenti: `M` silenzia
 tutto, `m` silenzia gli SSI sconosciuti — e `m` è **attivo di default** nella

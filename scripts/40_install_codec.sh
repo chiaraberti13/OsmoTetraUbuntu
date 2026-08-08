@@ -37,8 +37,39 @@ INSTALLDIR="$PREFIX/tetra/bin"
 CACHEDIR="$PREFIX/cache"
 ZIPFILE="$CACHEDIR/en_30039502v010301p0.zip"
 PATCHDIR="$PREFIX/src/install-tetra-codec"
+ARCHIVE_NAME="$(basename "$ZIPFILE")"
 
 CODEC_BINARIES=(cdecoder ccoder sdecoder scoder)
+
+valid_archive() {
+	local archive="$1" sum
+	[ -f "$archive" ] || return 1
+	sum="$(md5sum "$archive" 2>/dev/null | cut -d' ' -f1)"
+	[ "$sum" = "$CODEC_MD5" ]
+}
+
+# ETSI può consentire il download dal browser ma negarlo ai client da riga di
+# comando. Accetta quindi anche un archivio indicato esplicitamente o lasciato
+# nella cartella Download, ma solo dopo averne verificato l'MD5.
+import_local_archive() {
+	local candidate
+	for candidate in "${CODEC_ARCHIVE:-}" \
+		"${XDG_DOWNLOAD_DIR:-${HOME:-}/Downloads}/$ARCHIVE_NAME" \
+		"${HOME:-}/Scaricati/$ARCHIVE_NAME"; do
+		[ -n "$candidate" ] || continue
+		[ "$candidate" != "$ZIPFILE" ] || continue
+		[ -f "$candidate" ] || continue
+		if ! valid_archive "$candidate"; then
+			log_warn "Ignoro l'archivio locale con MD5 errato: $candidate"
+			continue
+		fi
+		mkdir -p "$CACHEDIR"
+		install -m 600 "$candidate" "$ZIPFILE"
+		log_ok "Archivio ETSI importato da $candidate"
+		return 0
+	done
+	return 1
+}
 
 manual_instructions() {
 	cat >&2 <<EOF
@@ -50,11 +81,11 @@ manual_instructions() {
      In alternativa cerca "EN 300 395-2" su https://www.etsi.org/standards-search
      e scarica la versione 1.3.1.
 
-  2. Copialo qui, con questo nome esatto:
-       $ZIPFILE
-     (md5 atteso: $CODEC_MD5)
+  2. Lascialo in ~/Downloads (o ~/Scaricati), oppure indica il percorso:
+       CODEC_ARCHIVE="/percorso/$ARCHIVE_NAME" PREFIX="$PREFIX" $HERE/$(basename "$0")
+     Lo script lo importerà solo se corrisponde all'md5 atteso: $CODEC_MD5
 
-  3. Rilancia questo script:
+  3. Se hai lasciato il file nella cartella Download, rilancia questo script:
        PREFIX="$PREFIX" $HERE/$(basename "$0")
 
 EOF
@@ -72,6 +103,9 @@ fetch_zip() {
 	mkdir -p "$CACHEDIR"
 	if [ -f "$ZIPFILE" ]; then
 		log_info "Archivio già presente in $ZIPFILE"
+		return 0
+	fi
+	if import_local_archive; then
 		return 0
 	fi
 	log_info "Scarico il codec da ETSI..."

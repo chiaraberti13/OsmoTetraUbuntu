@@ -151,6 +151,65 @@ clone_or_update() {
 	fi
 }
 
+# --- diagnostica delle build fallite --------------------------------------
+
+# Mostra il motivo per cui una compilazione è fallita.
+#
+# Stampare semplicemente la coda del log non basta: GCC non si ferma al primo
+# errore, continua ad analizzare il file ed emette altri warning, che finiscono
+# per coprire l'errore vero. Con sorgenti prolissi come telive.c l'errore può
+# stare centinaia di righe più in su. Qui si estraggono le righe che contano,
+# con il contesto che GCC stampa sotto ciascuna (il "did you mean", la riga di
+# codice, le note).
+report_build_failure() {
+	local logfile="$1" what="${2:-la compilazione}"
+	log_error "Compilazione di $what fallita."
+
+	if [ ! -f "$logfile" ]; then
+		log_info "Nessun log disponibile in $logfile"
+		return 1
+	fi
+
+	# Non basta cercare 'error:': gli errori del linker si presentano come
+	# "undefined reference to ..." su righe che quella parola non ce l'hanno,
+	# e un header mancante compare come "No such file or directory".
+	local pattern='error:|undefined reference|cannot find -l|No such file or directory'
+
+	# grep -c stampa 0 ed esce con 1 quando non trova niente: senza il
+	# fallback la variabile resterebbe vuota e il test numerico fallirebbe.
+	local n_err
+	n_err="$(grep -cE "$pattern" "$logfile" 2>/dev/null)" || n_err=0
+
+	if [ "${n_err:-0}" -gt 0 ]; then
+		if [ "$n_err" = "1" ]; then
+			log_info "1 errore (i warning sono omessi):"
+		else
+			log_info "$n_err errori. I primi (i warning sono omessi):"
+		fi
+		echo
+		# Ogni blocco parte da una riga di errore e prosegue con il contesto
+		# che GCC stampa sotto (la riga di codice, i marcatori, le note),
+		# fermandosi appena comincia una diagnostica diversa.
+		awk -v pat="$pattern" '
+			$0 ~ pat    { if (shown >= 8) exit; inblock = 1; shown++; print; next }
+			/warning:/  { inblock = 0; next }
+			inblock     { print }
+		' "$logfile" >&2
+		echo
+	else
+		# Nessuna riga riconoscibile: make stesso, o un errore inatteso.
+		log_info "Nessun errore riconoscibile nel log; ultime 25 righe:"
+		echo
+		tail -25 "$logfile" >&2
+		echo
+	fi
+
+	log_info "Log completo: $logfile"
+	log_info "Per rivedere solo gli errori:"
+	log_info "  grep -nE '$pattern' $logfile"
+	return 1
+}
+
 # --- compilatore ----------------------------------------------------------
 
 # I sorgenti upstream sono del 2011-2015 e contengono costrutti che GCC 14+

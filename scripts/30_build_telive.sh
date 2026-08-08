@@ -109,9 +109,7 @@ main() {
 	make -C "$SRCDIR" clean >/dev/null 2>&1 || true
 
 	if ! make -C "$SRCDIR" CC="${CC:-gcc} $cc_flags" > "$SRCDIR/build.log" 2>&1; then
-		log_error "Compilazione di telive fallita."
-		log_info  "Ultime righe di $SRCDIR/build.log:"
-		tail -25 "$SRCDIR/build.log" >&2
+		report_build_failure "$SRCDIR/build.log" "telive"
 		return 1
 	fi
 

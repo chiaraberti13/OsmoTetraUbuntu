@@ -45,9 +45,7 @@ main() {
 	make -C "$SRCDIR/src" clean >/dev/null 2>&1 || true
 
 	if ! make -C "$SRCDIR/src" CC="${CC:-gcc} $cc_flags" > "$SRCDIR/build.log" 2>&1; then
-		log_error "Compilazione di osmo-tetra-sq5bpf fallita."
-		log_info  "Ultime righe di $SRCDIR/build.log:"
-		tail -25 "$SRCDIR/build.log" >&2
+		report_build_failure "$SRCDIR/build.log" "osmo-tetra-sq5bpf"
 		return 1
 	fi
 

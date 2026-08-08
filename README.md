@@ -1,12 +1,13 @@
 # OsmoTetra
 
 <p align="center">
-  <img src="assets/banner.svg" alt="OsmoTetra — monitoraggio TETRA su Ubuntu con osmo-tetra-sq5bpf e telive" width="100%" />
+  <img src="assets/banner.svg" alt="OsmoTetra — monitoraggio TETRA su Ubuntu con osmo-tetra-sq5bpf-2 e telive-2" width="100%" />
 </p>
 
 <p align="center">
   <b>Installa, avvia e configura la suite di monitoraggio TETRA di
-  <a href="https://github.com/sq5bpf/telive">SQ5BPF</a> su Ubuntu 24.04 e successive —
+  <a href="https://github.com/sq5bpf/telive-2">SQ5BPF</a> (versione v2, con
+  decrittazione a chiave nota) su Ubuntu 24.04 e successive —
   senza aprire tre terminali a mano ogni volta.</b>
 </p>
 
@@ -21,9 +22,10 @@
 
 **OsmoTetra** installs, launches and configures the TETRA monitoring suite
 written by Jacek Lipkowski (SQ5BPF) —
-[`osmo-tetra-sq5bpf`](https://github.com/sq5bpf/osmo-tetra-sq5bpf) and
-[`telive`](https://github.com/sq5bpf/telive) — on Ubuntu 24.04 and later,
-using a cheap RTL-SDR dongle.
+[`osmo-tetra-sq5bpf-2`](https://github.com/sq5bpf/osmo-tetra-sq5bpf-2) and
+[`telive-2`](https://github.com/sq5bpf/telive-2) — on Ubuntu 24.04 and later,
+using a cheap RTL-SDR dongle. This is the **experimental v2 branch**, which
+adds known-key TEA1–4 voice decryption.
 
 The decoders themselves are excellent. Getting them running is not: you have
 to install around twenty packages by hand, build three separate projects, and
@@ -44,7 +46,7 @@ Here is what actually runs behind that button:
                                     │ UDP :42001, :42002, ...
                     ┌───────────────▼──────────────────────────────┐
                     │ [2] one decoder per channel                  │
-                    │     socat │ simdemod3_py3.py │ tetra-rx      │
+                    │     socat │ simdemod3_telive.py │ tetra-rx      │
                     └───────────────┬──────────────────────────────┘
                                     │ UDP :7379
                     ┌───────────────▼──────────────────────────────┐
@@ -68,8 +70,11 @@ size.
 > (your own networks, test benches, test signals). Checking and obeying the
 > applicable rules is your responsibility.
 >
-> Nothing here breaks encryption. Most professional TETRA networks encrypt
-> their voice (TEA1–4): those calls cannot be decoded without the keys.
+> Nothing here breaks encryption. This branch can **decrypt** TEA1–4 voice,
+> but only **with keys you already have** — it does not recover or crack keys.
+> Use decryption only on traffic you are authorised to decrypt, with keys in
+> your legitimate possession (your own network, a test bench, authorised
+> research). See [🔓 Known-key decryption](#known-key-decryption-en) below.
 
 ### What the installer does
 
@@ -77,7 +82,9 @@ size.
 2. Installs the system packages — compiler, libosmocore, GNU Radio, gr-osmosdr,
    ncurses, libxml2, socat, xterm, audio tools. All from the standard Ubuntu
    archives: **no PPA is added**.
-3. Clones `osmo-tetra-sq5bpf` and `telive` and builds them.
+3. Clones `osmo-tetra-sq5bpf-2` and `telive-2` and builds them, applying a
+   small patch so telive-2 compiles against modern libxml2 (see
+   [`patches/`](patches/)).
 4. Creates the data directories in your home folder — not in `/tetra`, which
    upstream expects to exist and be owned by root.
 5. Installs the application, a launcher and an **OsmoTetra** menu entry.
@@ -240,6 +247,10 @@ design, it decrypts nothing).
 mute), the SSI filter, KML export, and whether telive may drive the receiver
 over XMLRPC (tuning, scanning, automatic ppm correction).
 
+**Decrittazione (Decryption)** — turn on known-key TEA1–4 decryption, choose
+the keyfile (with a preview of its format) and optionally dump the raw voice.
+See [🔓 Known-key decryption](#known-key-decryption-en).
+
 **Sistema (System)** — the terminal used for telive and its size, automatic
 OGG re-compression, and the dependency list with buttons to install what is
 missing.
@@ -273,7 +284,7 @@ will actually use:
 | `q` / `Q` | scan until the first network / scan without stopping |
 | `d` | write the frequency report |
 
-The full manual is `~/.local/share/osmotetra/src/telive/telive_doc.pdf`.
+The full manual is `~/.local/share/osmotetra/src/telive-2/telive_doc.pdf`.
 
 ---
 
@@ -344,7 +355,44 @@ Beware of the mutes: `M` silences everything, `m` silences unknown SSIs — and
 > keys, and no option here changes that: the «Cifrati (-e)» checkbox only makes
 > `tetra-rx` interpret encrypted packets as if they were plaintext, which
 > produces nonsense — that is upstream's behaviour too. You also need to be on
-> a frequency actually carrying an unencrypted call, with enough signal.
+> a frequency actually carrying an unencrypted call, with enough signal. To
+> decrypt with keys you hold, see the next section.
+
+---
+
+<a name="known-key-decryption-en"></a>
+### 🔓 Known-key decryption
+
+The v2 branch can decrypt TEA1–4 voice **if you provide the keys yourself**.
+It does not recover or crack keys — it applies keys you already have.
+
+> ⚠️ **Legitimate use only.** Use this only on traffic you are authorised to
+> decrypt, with keys in your legitimate possession — your own network, a test
+> bench, authorised research. Nothing here breaks encryption; it only applies
+> keys you supply. Obeying the applicable laws is your responsibility.
+
+In the **Decrittazione** (Decryption) tab: tick *Decifra le chiamate*, then
+point *Keyfile* at your key file. The keyfile is a plain-text file in
+format used by osmo-tetra-sq5bpf-2 — the shipped `sample_keyfile` (next to `tetra-rx`) documents it:
+
+```
+# one network per line, then its keys
+network mcc 0222 mnc 55 ksg_type 2 security_class 2
+key mcc 0222 mnc 55 addr 00000000 key_type 1 key_num 0 key 1111111111111111111
+```
+
+- `ksg_type`: 1 = TEA1, 2 = TEA2, 3 = TEA3, 4 = TEA4.
+- `security_class`: 2 for SCK, 3 for CCK+DCK.
+- `key_type`: 1 = CCK/SCK, 16 = 32-bit shortened TEA1 key (padded to 80 bits).
+- `key`: the 80-bit key as a hex string.
+
+The keys themselves are **out of scope** for this project: you bring your own.
+When a call decrypts, the `tetra-rx` log shows `GET_KSG_KEY` and telive plays
+it (`OK *PLAY*`). *Dump della voce* additionally writes the raw voice frames to
+a directory, for offline analysis.
+
+> ℹ️ This is SQ5BPF's experimental v2 branch. It may be less stable than v1;
+> that is upstream's status, not a defect of this installer.
 
 ---
 
@@ -457,9 +505,11 @@ arrives, work backwards along the chain.
   too long to initialise: stop and start the chain again.
 - **No audio**: install the codec (`./install.sh --with-codec`), then check the
   mutes in telive (`M` and `m`). Test the audio path on its own with
-  `~/.local/share/osmotetra/tetra/bin/tplay ~/.local/share/osmotetra/src/telive/testfile.acelp`.
-- **Traffic is visible but there is no voice**: the network is almost certainly
-  encrypted. See the note above — nothing here decrypts anything.
+  `~/.local/share/osmotetra/tetra/bin/tplay ~/.local/share/osmotetra/src/telive-2/testfile.acelp`.
+- **Traffic is visible but there is no voice**: the network is encrypted. You
+  can decrypt it **only if you already hold the keys** — see
+  [🔓 Known-key decryption](#known-key-decryption-en). Without the keys, voice
+  cannot be recovered.
 - **Signal is there but never locks**: adjust the ppm correction. In telive
   press `t` for the frequency window and watch the AFC value: bring it close to
   zero. Cheap RTL-SDR dongles are easily 50–60 ppm off, and a few kHz of error
@@ -534,9 +584,10 @@ install and use the application is in this README, in both languages.
 
 **OsmoTetra** installa, avvia e configura la suite di monitoraggio TETRA
 scritta da Jacek Lipkowski (SQ5BPF) —
-[`osmo-tetra-sq5bpf`](https://github.com/sq5bpf/osmo-tetra-sq5bpf) e
-[`telive`](https://github.com/sq5bpf/telive) — su Ubuntu 24.04 e successive,
-con una comune chiavetta RTL-SDR.
+[`osmo-tetra-sq5bpf-2`](https://github.com/sq5bpf/osmo-tetra-sq5bpf-2) e
+[`telive-2`](https://github.com/sq5bpf/telive-2) — su Ubuntu 24.04 e successive,
+con una comune chiavetta RTL-SDR. È la **versione sperimentale v2**, che
+aggiunge la decrittazione vocale TEA1-4 a chiave nota.
 
 I decoder in sé sono ottimi. Metterli in funzione no: bisogna installare una
 ventina di pacchetti a mano, compilare tre progetti separati e poi **aprire
@@ -558,7 +609,7 @@ Ecco cosa gira davvero dietro quel pulsante:
                                     │ UDP :42001, :42002, ...
                     ┌───────────────▼──────────────────────────────┐
                     │ [2] un decoder per canale                    │
-                    │     socat │ simdemod3_py3.py │ tetra-rx      │
+                    │     socat │ simdemod3_telive.py │ tetra-rx      │
                     └───────────────┬──────────────────────────────┘
                                     │ UDP :7379
                     ┌───────────────▼──────────────────────────────┐
@@ -582,9 +633,12 @@ esattamente quella dimensione.
 > **autorizzati** a ricevere (reti proprie, banchi di prova, segnali di test).
 > Verificare e rispettare le norme applicabili è responsabilità di chi lo usa.
 >
-> Qui dentro non si rompe nessuna cifratura. La maggior parte delle reti TETRA
-> professionali cifra la voce (TEA1–4): quelle chiamate non sono decodificabili
-> senza le chiavi.
+> Qui dentro non si rompe nessuna cifratura. Questa versione può **decifrare**
+> la voce TEA1–4, ma **solo con chiavi che possiedi già** — non recupera né
+> forza alcuna chiave. Usa la decrittazione solo su traffico che sei
+> autorizzato a decifrare, con chiavi in tuo legittimo possesso (rete propria,
+> banco di prova, ricerca autorizzata). Vedi
+> [🔓 Decrittazione a chiave nota](#decrittazione-a-chiave-nota-it) più avanti.
 
 ### Cosa fa l'installer
 
@@ -592,7 +646,9 @@ esattamente quella dimensione.
 2. Installa i pacchetti di sistema — compilatore, libosmocore, GNU Radio,
    gr-osmosdr, ncurses, libxml2, socat, xterm, strumenti audio. Tutti dagli
    archivi standard di Ubuntu: **non viene aggiunto nessun PPA**.
-3. Clona `osmo-tetra-sq5bpf` e `telive` e li compila.
+3. Clona `osmo-tetra-sq5bpf-2` e `telive-2` e li compila, applicando una
+   piccola patch perché telive-2 compili con libxml2 recente (vedi
+   [`patches/`](patches/)).
 4. Crea le directory dei dati nella tua home — non in `/tetra`, che upstream
    si aspetta esista e sia di proprietà di root.
 5. Installa l'applicazione, un launcher e la voce di menu **OsmoTetra**.
@@ -756,6 +812,10 @@ senso, non decifra nulla).
 silenzia), il filtro SSI, l'export KML, e se telive può pilotare il ricevitore
 via XMLRPC (sintonia, scansione, correzione automatica del ppm).
 
+**Decrittazione** — abilita la decifratura TEA1–4 a chiave nota, sceglie il
+keyfile (con anteprima del formato) e, se vuoi, salva la voce grezza. Vedi
+[🔓 Decrittazione a chiave nota](#decrittazione-a-chiave-nota-it).
+
 **Sistema** — il terminale usato per telive e la sua dimensione, la
 ricompressione automatica in OGG, e l'elenco delle dipendenze con i pulsanti
 per installare ciò che manca.
@@ -789,7 +849,7 @@ Quelli che userai davvero:
 | `q` / `Q` | scansiona fino alla prima rete / scansiona senza fermarsi |
 | `d` | scrivi il report delle frequenze |
 
-Il manuale completo è `~/.local/share/osmotetra/src/telive/telive_doc.pdf`.
+Il manuale completo è `~/.local/share/osmotetra/src/telive-2/telive_doc.pdf`.
 
 ---
 
@@ -862,7 +922,46 @@ sconosciuti — e `m` è **attivo di default** nella configurazione iniziale.
 > casella «Cifrati (-e)» fa solo interpretare a `tetra-rx` i pacchetti cifrati
 > come se fossero in chiaro, e il risultato è privo di senso — è così anche in
 > upstream. Serve inoltre essere su una frequenza che porti davvero una
-> chiamata non cifrata, con segnale sufficiente.
+> chiamata non cifrata, con segnale sufficiente. Per decifrare con chiavi che
+> possiedi, vedi la sezione seguente.
+
+---
+
+<a name="decrittazione-a-chiave-nota-it"></a>
+### 🔓 Decrittazione a chiave nota
+
+La versione v2 può decifrare la voce TEA1–4 **se fornisci tu le chiavi**. Non
+recupera né forza alcuna chiave: applica chiavi che hai già.
+
+> ⚠️ **Solo uso legittimo.** Usala solo su traffico che sei autorizzato a
+> decifrare, con chiavi in tuo legittimo possesso — rete propria, banco di
+> prova, ricerca autorizzata. Qui dentro non si rompe nessuna cifratura: si
+> applicano soltanto chiavi che fornisci tu. Rispettare le norme applicabili è
+> responsabilità di chi la usa.
+
+Nella scheda **Decrittazione**: spunta *Decifra le chiamate*, poi indica in
+*Keyfile* il tuo file di chiavi. Il keyfile è un file di testo nel formato di
+osmo-tetra-sq5bpf-2 — il `sample_keyfile` incluso (accanto a `tetra-rx`) lo
+documenta:
+
+```
+# una rete per riga, poi le sue chiavi
+network mcc 0222 mnc 55 ksg_type 2 security_class 2
+key mcc 0222 mnc 55 addr 00000000 key_type 1 key_num 0 key 1111111111111111111
+```
+
+- `ksg_type`: 1 = TEA1, 2 = TEA2, 3 = TEA3, 4 = TEA4.
+- `security_class`: 2 per SCK, 3 per CCK+DCK.
+- `key_type`: 1 = CCK/SCK, 16 = chiave TEA1 accorciata a 32 bit (riempita a 80).
+- `key`: la chiave a 80 bit come stringa esadecimale.
+
+Le chiavi in sé sono **fuori dallo scopo** di questo progetto: le porti tu.
+Quando una chiamata viene decifrata, il log di `tetra-rx` mostra `GET_KSG_KEY`
+e telive la riproduce (`OK *PLAY*`). *Dump della voce* salva in più i frame
+vocali grezzi in una directory, per l'analisi offline.
+
+> ℹ️ Questa è la versione sperimentale v2 di SQ5BPF: può essere meno stabile
+> della v1. È lo stato di upstream, non un difetto dell'installer.
 
 ---
 
@@ -979,9 +1078,11 @@ niente, si procede a ritroso lungo la catena.
 - **Nessun audio**: installa il codec (`./install.sh --with-codec`), poi
   controlla i silenziamenti in telive (`M` e `m`). Prova la catena audio da
   sola con
-  `~/.local/share/osmotetra/tetra/bin/tplay ~/.local/share/osmotetra/src/telive/testfile.acelp`.
+  `~/.local/share/osmotetra/tetra/bin/tplay ~/.local/share/osmotetra/src/telive-2/testfile.acelp`.
 - **Traffico visibile ma nessuna voce**: la rete è quasi sicuramente cifrata.
-  Vedi la nota più sopra — qui dentro non si decifra niente.
+  Puoi decifrarla **solo se possiedi già le chiavi** — vedi
+  [🔓 Decrittazione a chiave nota](#decrittazione-a-chiave-nota-it). Senza le
+  chiavi la voce non è recuperabile.
 - **Il segnale c'è ma non aggancia**: regola la correzione in ppm. In telive
   premi `t` per la finestra delle frequenze e osserva il valore AFC: va portato
   vicino a zero. Le chiavette RTL-SDR economiche sbagliano tranquillamente di

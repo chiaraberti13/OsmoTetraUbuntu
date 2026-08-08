@@ -113,6 +113,48 @@ class RecordingConfig:
 
 
 @dataclass
+class DecryptConfig:
+    """Decrittazione a chiave nota e dump della voce (funzioni di telive-2).
+
+    La decrittazione TEA1-4 funziona **solo** fornendo chiavi che si
+    possiedono già (rete propria, banco di prova, ricerca autorizzata): non
+    rompe alcuna cifratura. Il keyfile è nel formato del `sample_keyfile` di
+    telive-2 (righe ``network mcc … ksg_type …`` e ``key mcc … key <hex>``).
+    """
+
+    #: Abilita -k: tetra-rx tenta di decifrare con le chiavi del keyfile.
+    enabled: bool = False
+    #: Percorso del keyfile. Vuoto = usa il sample_keyfile di osmo-tetra-sq5bpf-2.
+    keyfile: str = ""
+    #: Abilita -d: dump del traffico voce grezzo in una directory.
+    dump_voice: bool = False
+    #: Directory di dump. Vuoto = <dati>/tetra/dump.
+    dump_dir: str = ""
+
+    def keyfile_path(self) -> str:
+        """Percorso effettivo del keyfile (il default se non specificato)."""
+        if self.keyfile.strip():
+            return self.keyfile.strip()
+        from . import paths
+        return str(paths.sample_keyfile())
+
+    def dump_path(self) -> str:
+        if self.dump_dir.strip():
+            return self.dump_dir.strip()
+        from . import paths
+        return str(paths.tetra_dir() / "dump")
+
+    def tetra_rx_flags(self) -> list[str]:
+        """Argomenti aggiuntivi per tetra-rx (v2): -k keyfile, -d dumpdir."""
+        flags: list[str] = []
+        if self.enabled:
+            flags += ["-k", self.keyfile_path()]
+        if self.dump_voice:
+            flags += ["-d", self.dump_path()]
+        return flags
+
+
+@dataclass
 class TerminalConfig:
     """Come aprire il terminale che ospita telive.
 
@@ -136,6 +178,7 @@ class Config:
     telive: TeliveConfig = field(default_factory=TeliveConfig)
     recording: RecordingConfig = field(default_factory=RecordingConfig)
     terminal: TerminalConfig = field(default_factory=TerminalConfig)
+    decrypt: DecryptConfig = field(default_factory=DecryptConfig)
     channels: list[Channel] = field(default_factory=lambda: [Channel()])
     #: Porta del server XMLRPC del flowgraph; il canale N usa base+N in UDP.
     base_port: int = 42000
@@ -231,6 +274,15 @@ class Config:
         elif self.sdr.source not in ("osmosdr", "null"):
             errors.append(f"Sorgente non riconosciuta: {self.sdr.source}")
 
+        # Se la decrittazione è attiva, il keyfile deve esistere: tetra-rx -k
+        # con un file mancante fallirebbe silenziosamente a decoder avviato.
+        if self.decrypt.enabled:
+            keyfile = Path(self.decrypt.keyfile_path()).expanduser()
+            if not keyfile.is_file():
+                errors.append(
+                    f"Decrittazione attiva ma keyfile non trovato: {keyfile}"
+                )
+
         return errors
 
     def warnings(self) -> list[str]:
@@ -323,6 +375,7 @@ _NESTED = {
     "telive": TeliveConfig,
     "recording": RecordingConfig,
     "terminal": TerminalConfig,
+    "decrypt": DecryptConfig,
 }
 
 

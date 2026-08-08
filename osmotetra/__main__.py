@@ -275,7 +275,7 @@ def cmd_self_test(args) -> int:
     demod = by_key["demod-2"]
     cmdline = demod.cmdline
     check("il decoder usa socat", "socat" in cmdline)
-    check("il decoder usa simdemod3", "simdemod3_py3.py" in cmdline)
+    check("il decoder usa simdemod3", "simdemod3_telive.py" in cmdline)
     check("il decoder usa tetra-rx", "tetra-rx" in cmdline)
     check("il decoder ascolta sulla porta del canale",
           f"UDP-RECV:{cfg.channel_udp_port(2)}" in cmdline, cmdline)
@@ -284,6 +284,30 @@ def cmd_self_test(args) -> int:
           demod.env.get("TETRA_HACK_PORT") == str(cfg.telive.udp_port))
     check("il decoder è una pipeline shell terminabile in gruppo",
           demod.argv[0] == "bash" and demod.argv[1] == "-c")
+
+    # 3b. Decrittazione a chiave nota (v2): i flag -k/-d compaiono solo se attivi.
+    check("senza decrittazione nessun -k nel comando", "-k" not in cmdline.split())
+
+    tmp_keyfile = Path(args.tmpdir or paths.config_dir()) / "self-test-keyfile"
+    tmp_keyfile.write_text(
+        "network mcc 0222 mnc 55 ksg_type 2 security_class 2\n", encoding="utf-8")
+    keycfg = Config()
+    keycfg.decrypt.enabled = True
+    keycfg.decrypt.keyfile = str(tmp_keyfile)
+    keycfg.decrypt.dump_voice = True
+    key_pipeline = Pipeline(keycfg)
+    key_stages = {s.key: s for s in key_pipeline.build_stages()}
+    key_cmd = key_stages["demod-1"].cmdline
+    check("con decrittazione, -k <keyfile> nel comando",
+          "-k" in key_cmd and str(tmp_keyfile) in key_cmd, key_cmd)
+    check("con dump voce, -d <dumpdir> nel comando", "-d" in key_cmd)
+
+    missing_key = Config()
+    missing_key.decrypt.enabled = True
+    missing_key.decrypt.keyfile = "/percorso/inesistente/keyfile"
+    check("keyfile mancante segnalato dalla validazione",
+          missing_key.validate() != [])
+    tmp_keyfile.unlink(missing_ok=True)
 
     # 4. Variabili d'ambiente di telive.
     from . import telive_env
@@ -336,6 +360,9 @@ def _self_test_gui(check) -> bool:
     expected.set_channel_count(2)
     expected.sdr.freq_hz = 391_100_000.0
     expected.channels[1].offset_hz = 250_000.0
+    expected.decrypt.enabled = True
+    expected.decrypt.keyfile = "/tmp/keyfile-di-prova"
+    expected.decrypt.dump_voice = True
 
     window = MainWindow(Config.from_dict(expected.to_dict()))
     window.load_config_into_widgets()
@@ -350,6 +377,8 @@ def _self_test_gui(check) -> bool:
           window.cfg.to_dict()["channels"] == expected.to_dict()["channels"])
     check("la GUI conserva le impostazioni di telive",
           window.cfg.to_dict()["telive"] == expected.to_dict()["telive"])
+    check("la GUI conserva la decrittazione nel giro andata/ritorno",
+          window.cfg.to_dict()["decrypt"] == expected.to_dict()["decrypt"])
     check("la GUI conserva la porta base",
           window.cfg.base_port == expected.base_port)
 
@@ -393,7 +422,7 @@ def cmd_gui(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="osmotetra",
-        description="Monitoraggio TETRA con osmo-tetra-sq5bpf e telive.",
+        description="Monitoraggio TETRA con osmo-tetra-sq5bpf-2 e telive-2.",
     )
     parser.add_argument("--version", action="version",
                         version=f"OsmoTetraUbuntu {__version__}")

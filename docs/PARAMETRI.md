@@ -38,7 +38,7 @@ Il canale 1 conviene sintonizzarlo sul canale di controllo, che porta quasi
 tutta la segnalazione.
 
 `tetra-rx` ha anche `-a` (pseudo-AFC), che upstream funziona **solo** insieme
-a `-i` (ingresso a valori float). Nella catena con `simdemod3_py3.py`
+a `-i` (ingresso a valori float). Nella catena con `simdemod3_telive.py`
 l'ingresso è già a bit, quindi `-a` non viene passato: la correzione la fa
 simdemod3, che invia a telive i messaggi `AFCVAL` mostrati nella finestra
 delle frequenze.
@@ -92,7 +92,7 @@ I più usati:
 | `q` / `Q` | scansiona fino alla prima rete / scansiona senza fermarsi |
 | `d` | scrivi il report delle frequenze |
 
-Il manuale completo è `~/.local/share/osmotetra/src/telive/telive_doc.pdf`.
+Il manuale completo è `~/.local/share/osmotetra/src/telive-2/telive_doc.pdf`.
 
 ## Variabili d'ambiente dell'applicazione
 

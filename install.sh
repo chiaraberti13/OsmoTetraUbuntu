@@ -70,6 +70,7 @@ install_python_app() {
 	cp -r "$REPO/osmotetra" "$libdir/osmotetra"
 	cp -r "$REPO/gnuradio"  "$libdir/gnuradio"
 	cp -r "$REPO/scripts"   "$libdir/scripts"
+	cp -r "$REPO/patches"   "$libdir/patches"
 	find "$libdir" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 	chmod 755 "$libdir/gnuradio/osmotetra_rx.py" "$libdir"/scripts/*.sh 2>/dev/null || true
 

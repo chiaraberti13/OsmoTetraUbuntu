@@ -19,7 +19,7 @@ Come sono collegati i pezzi, e perché alcune scelte non ovvie sono fatte così.
                     ┌───────────────▼──────────────────────────────┐
                     │ [2] un decoder per canale                    │
                     │     socat UDP-RECV:4200N                     │
-                    │       │ simdemod3_py3.py   (π/4-DQPSK)       │
+                    │       │ simdemod3_telive.py   (π/4-DQPSK)       │
                     │       │ tetra-rx -r -s                       │
                     └───────────────┬──────────────────────────────┘
                                     │ UDP :7379
@@ -75,12 +75,12 @@ stadio ha figli.
 
 I binding di GNU Radio sono compilati per il Python del pacchetto Ubuntu (3.12
 su 24.04). Se sulla macchina convive un altro Python che occupa il PATH —
-pyenv, conda, una build da sorgente — `simdemod3_py3.py`, che ha
+pyenv, conda, una build da sorgente — `simdemod3_telive.py`, che ha
 `#!/usr/bin/env python3` come shebang, parte con l'interprete sbagliato e
 fallisce con `ModuleNotFoundError: No module named 'gnuradio.gr.gr_python'`.
 
 `deps.find_gnuradio_python()` prova i candidati finché uno non importa
-`gnuradio`, e sia il flowgraph sia `simdemod3_py3.py` vengono invocati con
+`gnuradio`, e sia il flowgraph sia `simdemod3_telive.py` vengono invocati con
 quell'interprete invece che tramite shebang. `OSMOTETRA_PYTHON` forza la scelta.
 
 ### Il flowgraph è parametrico invece di essere pilotato solo via XMLRPC
@@ -122,6 +122,7 @@ questo `Pipeline._spawn()` antepone `tetra/bin` al `PATH` di ogni stadio.
 | Percorso | Contenuto |
 |---|---|
 | `install.sh`, `scripts/` | installazione: pacchetti, build upstream, codec, udev |
+| `patches/` | patch applicate ai sorgenti upstream (es. nanohttp→socket per telive-2) |
 | `gnuradio/osmotetra_rx.py` | flowgraph parametrico 1..6 canali |
 | `osmotetra/config.py` | configurazione, validazione, profili |
 | `osmotetra/deps.py` | rilevamento dipendenze e interprete GNU Radio |
@@ -134,7 +135,7 @@ A runtime, sotto `~/.local/share/osmotetra`:
 
 | Percorso | Contenuto |
 |---|---|
-| `src/osmo-tetra-sq5bpf`, `src/telive` | sorgenti upstream clonati e compilati |
+| `src/osmo-tetra-sq5bpf-2`, `src/telive-2` | sorgenti upstream (v2) clonati e compilati |
 | `lib/` | copia dell'applicazione usata dal launcher |
 | `tetra/in`, `tetra/out` | chiamate registrate, grezze e in OGG |
 | `tetra/log` | `telive.log`, KML, report delle frequenze |

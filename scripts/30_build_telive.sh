@@ -17,10 +17,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib_common.sh
 . "$HERE/lib_common.sh"
 
-TELIVE_URL="${TELIVE_URL:-https://github.com/sq5bpf/telive}"
+TELIVE_URL="${TELIVE_URL:-https://github.com/sq5bpf/telive-2}"
 PREFIX="${PREFIX:?PREFIX non impostato}"
-SRCDIR="$PREFIX/src/telive"
+SRCDIR="$PREFIX/src/telive-2"
 TETRADIR="$PREFIX/tetra"
+PATCHES="$(cd "$HERE/.." && pwd)/patches"
 
 # Genera uno script da template sostituendo i segnaposto @NOME@.
 render_template() {
@@ -54,31 +55,48 @@ install_helpers() {
 	log_ok "tplay e tetrad installati in $TETRADIR/bin"
 }
 
-# telive usa il modulo nanohttp di libxml2 per parlare XMLRPC con il
-# ricevitore. Da libxml2 2.12 è deprecato e dalla 2.14 è stato rimosso: su
-# quelle versioni la compilazione muore su un #include mancante, con un
-# messaggio che non dice niente di utile. Meglio accorgersene prima.
-check_libxml_nanohttp() {
-	local incdir
-	incdir="$(xml2-config --cflags 2>/dev/null | tr ' ' '\n' | grep '^-I' | head -1)"
-	incdir="${incdir#-I}"
-	[ -n "$incdir" ] || return 0          # niente xml2-config: ci pensa la build
-
-	if [ ! -f "$incdir/libxml/nanohttp.h" ]; then
-		log_error "libxml2 $(pkg-config --modversion libxml-2.0 2>/dev/null) non fornisce più libxml/nanohttp.h."
-		log_info  "telive lo usa per il controllo XMLRPC del ricevitore, quindi non compila."
-		log_info  "Il modulo è stato rimosso da libxml2 2.14: serve una correzione"
-		log_info  "a monte, in telive. Segnala il problema aprendo una issue su:"
-		log_info  "  https://github.com/chiaraberti13/OsmoTetraUbuntu/issues"
-		return 1
+# telive-2 comunica in XMLRPC col ricevitore usando il modulo nanohttp di
+# libxml2, deprecato dalla 2.12 e rimosso dalla 2.14. Su Ubuntu 25.04+
+# (libxml2 >= 2.14) non compilerebbe. Applichiamo una patch che sostituisce
+# quelle chiamate con una POST via socket (vedi patches/README.md).
+#
+# patch -p1 -N è idempotente: se è già applicata (secondo ./install.sh) esce
+# senza fare danni. Se non applica pulita — l'autore ha toccato quelle righe a
+# monte — ci si ferma con una diagnosi chiara invece di un errore oscuro del
+# compilatore su nanohttp.h.
+NANOHTTP_PATCH="telive2-nanohttp-to-socket.diff"
+apply_nanohttp_patch() {
+	local patch="$PATCHES/$NANOHTTP_PATCH"
+	if [ ! -f "$patch" ]; then
+		log_warn "Patch $NANOHTTP_PATCH non trovata in $PATCHES: procedo senza."
+		return 0
 	fi
-	return 0
+	if [ "${DRY_RUN:-0}" = "1" ]; then
+		log_info "[dry-run] applico $NANOHTTP_PATCH a telive-2"
+		return 0
+	fi
+
+	# Già applicata? (il -R --dry-run riesce quando la patch è invertibile,
+	# cioè già presente nei sorgenti.)
+	if patch -p1 -R --dry-run -f -d "$SRCDIR" < "$patch" >/dev/null 2>&1; then
+		log_ok "Patch nanohttp già applicata"
+		return 0
+	fi
+	if patch -p1 -N -d "$SRCDIR" < "$patch" >/dev/null 2>&1; then
+		log_ok "Patch nanohttp applicata (POST XMLRPC via socket)"
+		return 0
+	fi
+
+	log_error "La patch $NANOHTTP_PATCH non si applica ai sorgenti attuali di telive-2."
+	log_info  "Probabilmente l'autore ha modificato le funzioni XMLRPC a monte."
+	log_info  "Va rigenerata: vedi le istruzioni in patches/README.md."
+	return 1
 }
 
 main() {
-	log_step "telive"
-	check_libxml_nanohttp || return 1
+	log_step "telive-2"
 	clone_or_update "$TELIVE_URL" "$SRCDIR"
+	apply_nanohttp_patch || return 1
 	make_data_dirs
 
 	if [ "${DRY_RUN:-0}" = "1" ]; then

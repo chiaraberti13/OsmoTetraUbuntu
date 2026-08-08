@@ -43,13 +43,13 @@ def src_dir() -> Path:
 
 
 def osmo_tetra_src() -> Path:
-    """Directory ``src`` di osmo-tetra-sq5bpf: contiene tetra-rx e demod/."""
-    return src_dir() / "osmo-tetra-sq5bpf" / "src"
+    """Directory ``src`` di osmo-tetra-sq5bpf-2: contiene tetra-rx e demod/."""
+    return src_dir() / "osmo-tetra-sq5bpf-2" / "src"
 
 
 def telive_src() -> Path:
-    """Directory di telive: contiene il binario, tetra.xml, ssi_descriptions."""
-    return src_dir() / "telive"
+    """Directory di telive-2: contiene il binario, tetra.xml, ssi_descriptions."""
+    return src_dir() / "telive-2"
 
 
 def tetra_dir() -> Path:
@@ -96,8 +96,16 @@ def scripts_dir() -> Path:
 
 
 def simdemod() -> Path:
-    """Demodulatore π/4-DQPSK di osmo-tetra-sq5bpf per GNU Radio 3.10."""
-    return osmo_tetra_src() / "demod" / "gnuradio-3.10" / "simdemod3_py3.py"
+    """Demodulatore π/4-DQPSK di osmo-tetra-sq5bpf-2 (rinominato in v2)."""
+    return osmo_tetra_src() / "demod" / "simdemod3_telive.py"
+
+
+def sample_keyfile() -> Path:
+    """Keyfile di esempio di osmo-tetra-sq5bpf-2: modello per la decrittazione.
+
+    Sta accanto a tetra-rx (nella dir ``src`` del decoder), non in telive-2.
+    """
+    return osmo_tetra_src() / "sample_keyfile"
 
 
 def tetra_rx() -> Path:

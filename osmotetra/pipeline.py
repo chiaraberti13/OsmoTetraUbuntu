@@ -181,21 +181,26 @@ class Pipeline:
         udp_port = cfg.channel_udp_port(index1)
         src = paths.osmo_tetra_src()
 
+        flags = channel.tetra_rx_flags()
+        # Decrittazione a chiave nota e dump della voce (novità della v2):
+        # aggiungono -k <keyfile> e -d <dumpdir> agli argomenti di tetra-rx.
+        flags += cfg.decrypt.tetra_rx_flags()
+
         pipeline = (
             f"set -o pipefail; "
             f"socat -b 4096 UDP-RECV:{udp_port} STDOUT "
             f"| {shlex.quote(self._python)} {shlex.quote(str(paths.simdemod()))} "
             f"| {shlex.quote(str(paths.tetra_rx()))} "
-            f"{' '.join(channel.tetra_rx_flags())} /dev/stdin"
+            f"{' '.join(shlex.quote(f) for f in flags)} /dev/stdin"
         )
 
         return Stage(
             key=f"demod-{index1}",
             label=f"Decoder canale {index1}",
             argv=["bash", "-c", pipeline],
-            # simdemod3_py3.py importa simdemod3_py3_send_udp_to_telive dalla
-            # propria directory: senza questa cwd l'import fallisce.
-            cwd=src / "demod" / "gnuradio-3.10",
+            # simdemod3_telive.py importa simdemod3_telive_send_udp_to_telive
+            # dalla propria directory: senza questa cwd l'import fallisce.
+            cwd=src / "demod",
             env={
                 # Lette da tetra-rx (tetra-rx.c) e da simdemod3 per sapere
                 # dove mandare i dati decodificati e i messaggi AFC.

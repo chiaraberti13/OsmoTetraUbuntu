@@ -273,7 +273,7 @@ configurazione iniziale. Prova la catena audio da sola:
 
 ```sh
 ~/.local/share/osmotetra/tetra/bin/tplay \
-    ~/.local/share/osmotetra/src/telive/testfile.acelp
+    ~/.local/share/osmotetra/src/telive-2/testfile.acelp
 ```
 
 ### Traffico visibile ma nessuna voce

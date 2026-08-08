@@ -14,9 +14,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib_common.sh
 . "$HERE/lib_common.sh"
 
-OSMO_TETRA_URL="${OSMO_TETRA_URL:-https://github.com/sq5bpf/osmo-tetra-sq5bpf}"
+OSMO_TETRA_URL="${OSMO_TETRA_URL:-https://github.com/sq5bpf/osmo-tetra-sq5bpf-2}"
 PREFIX="${PREFIX:?PREFIX non impostato}"
-SRCDIR="$PREFIX/src/osmo-tetra-sq5bpf"
+SRCDIR="$PREFIX/src/osmo-tetra-sq5bpf-2"
 
 check_libosmocore() {
 	if ! pkg-config --exists libosmocore 2>/dev/null; then
@@ -45,7 +45,7 @@ main() {
 	make -C "$SRCDIR/src" clean >/dev/null 2>&1 || true
 
 	if ! make -C "$SRCDIR/src" CC="${CC:-gcc} $cc_flags" > "$SRCDIR/build.log" 2>&1; then
-		report_build_failure "$SRCDIR/build.log" "osmo-tetra-sq5bpf"
+		report_build_failure "$SRCDIR/build.log" "osmo-tetra-sq5bpf-2"
 		return 1
 	fi
 

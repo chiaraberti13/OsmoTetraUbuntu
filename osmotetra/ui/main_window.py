@@ -20,7 +20,7 @@ from .. import config as config_mod, deps, paths
 from ..config import Config
 from ..pipeline import Pipeline, StageState
 from .log_view import LogView
-from .tabs import ChannelsTab, SdrTab, SystemTab, TeliveTab
+from .tabs import ChannelsTab, DecryptTab, SdrTab, SystemTab, TeliveTab
 from .widgets import StatusLight, separator
 
 #: Frequenza di aggiornamento dello stato dei processi.
@@ -119,8 +119,14 @@ class MainWindow(QMainWindow):
         self.sdr_tab = SdrTab()
         self.channels_tab = ChannelsTab()
         self.telive_tab = TeliveTab()
+        self.decrypt_tab = DecryptTab()
         self.system_tab = SystemTab()
         self.log_view = LogView()
+
+        #: Schede che leggono/scrivono la configurazione, unica fonte di verità
+        #: per load/collect e per il collegamento del segnale changed.
+        self.config_tabs = (self.sdr_tab, self.channels_tab, self.telive_tab,
+                            self.decrypt_tab, self.system_tab)
 
         self.tabs = QTabWidget()
         # Le schede di configurazione sono più alte di un portatile da 13":
@@ -129,10 +135,11 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(_scrollable(self.sdr_tab), "Radio")
         self.tabs.addTab(self.channels_tab, "Canali")
         self.tabs.addTab(_scrollable(self.telive_tab), "telive")
+        self.tabs.addTab(_scrollable(self.decrypt_tab), "Decrittazione")
         self.tabs.addTab(_scrollable(self.system_tab), "Sistema")
         self.tabs.addTab(self.log_view, "Log")
 
-        for tab in (self.sdr_tab, self.channels_tab, self.telive_tab, self.system_tab):
+        for tab in self.config_tabs:
             tab.changed.connect(self._on_config_changed)
         self.system_tab.install_requested.connect(self._run_installer)
 
@@ -174,8 +181,7 @@ class MainWindow(QMainWindow):
     def load_config_into_widgets(self) -> None:
         self._loading = True
         try:
-            for tab in (self.sdr_tab, self.channels_tab,
-                        self.telive_tab, self.system_tab):
+            for tab in self.config_tabs:
                 tab.load(self.cfg)
         finally:
             self._loading = False
@@ -183,7 +189,7 @@ class MainWindow(QMainWindow):
         self._refresh_banner()
 
     def collect_widgets_into_config(self) -> None:
-        for tab in (self.sdr_tab, self.channels_tab, self.telive_tab, self.system_tab):
+        for tab in self.config_tabs:
             tab.collect(self.cfg)
 
     def save_config(self) -> None:

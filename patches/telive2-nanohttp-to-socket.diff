@@ -1,0 +1,181 @@
+diff --git a/telive.c b/telive.c
+index 8960e80..e9a72bd 100644
+--- a/telive.c
++++ b/telive.c
+@@ -2896,7 +2896,8 @@ int main(void)
+ 	updopis();
+ 
+ 	if (grxml_url) {
+-		xmlNanoHTTPInit();		
++		/* OsmoTetraUbuntu: xmlNanoHTTPInit() rimosso — nanohttp non esiste
++		 * più da libxml2 2.14; la POST XMLRPC ora è in telive_receiver.c. */
+ 		grxml_discover_receiver(grxml_url);
+ 	}
+ 	if (grxml_rx_description) {
+diff --git a/telive_receiver.c b/telive_receiver.c
+index 3869c64..cf50998 100644
+--- a/telive_receiver.c
++++ b/telive_receiver.c
+@@ -14,10 +14,123 @@
+ #include <sys/stat.h>
+ #include <stdint.h>
+ 
++/* OsmoTetraUbuntu: sostituto di libxml2 nanohttp, rimosso da libxml2 2.14.
++ * La POST XMLRPC verso il ricevitore gnuradio è HTTP semplice su localhost:
++ * la facciamo con socket POSIX, senza dipendenze aggiuntive. */
++#include <sys/socket.h>
++#include <netdb.h>
++#include <errno.h>
++
+ #include "telive_receiver.h"
+ 
+ #define HTTPBUF_SIZE 8192
+ 
++/* Esegue una POST HTTP/1.0 di un corpo XMLRPC verso "url" (http://host:porta/path).
++ * In caso di risposta HTTP 200 copia il corpo in "body" (max "bodycap" byte) e
++ * restituisce il numero di byte copiati; restituisce -1 su errore di rete o
++ * stato diverso da 200. Sostituisce xmlNanoHTTPMethod/ReturnCode/Read/Close. */
++static int xmlrpc_http_post(const char *url, const char *postbuf,
++			    char *body, int bodycap)
++{
++	char host[256], port[16], path[256];
++	const char *p, *hoststart, *portstart, *pathstart;
++	int hostlen, portlen;
++
++	/* Solo http:// — il ricevitore gnuradio non parla https. */
++	if (strncmp(url, "http://", 7) != 0) {
++		fprintf(stderr, "grxml: URL non http:// (%s)\n", url);
++		return -1;
++	}
++	hoststart = url + 7;
++	pathstart = strchr(hoststart, '/');
++	portstart = memchr(hoststart, ':',
++			   pathstart ? (size_t)(pathstart - hoststart)
++				     : strlen(hoststart));
++	if (portstart) {
++		hostlen = portstart - hoststart;
++		portlen = (pathstart ? pathstart : hoststart + strlen(hoststart))
++			  - (portstart + 1);
++		if (portlen <= 0 || portlen >= (int)sizeof(port)) return -1;
++		memcpy(port, portstart + 1, portlen);
++		port[portlen] = 0;
++	} else {
++		hostlen = (pathstart ? pathstart : hoststart + strlen(hoststart))
++			  - hoststart;
++		strcpy(port, "80");
++	}
++	if (hostlen <= 0 || hostlen >= (int)sizeof(host)) return -1;
++	memcpy(host, hoststart, hostlen);
++	host[hostlen] = 0;
++	snprintf(path, sizeof(path), "%s", (pathstart && *pathstart) ? pathstart : "/");
++
++	struct addrinfo hints, *res = NULL, *ai;
++	memset(&hints, 0, sizeof(hints));
++	hints.ai_family = AF_UNSPEC;
++	hints.ai_socktype = SOCK_STREAM;
++	if (getaddrinfo(host, port, &hints, &res) != 0) {
++		fprintf(stderr, "grxml: getaddrinfo(%s:%s) fallita\n", host, port);
++		return -1;
++	}
++
++	int fd = -1;
++	for (ai = res; ai; ai = ai->ai_next) {
++		fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
++		if (fd < 0) continue;
++		if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) break;
++		close(fd); fd = -1;
++	}
++	freeaddrinfo(res);
++	if (fd < 0) { fprintf(stderr, "grxml: connessione a %s:%s fallita\n", host, port); return -1; }
++
++	/* HTTP/1.0 + Connection: close: il server chiude a fine risposta, così
++	 * possiamo leggere fino a EOF senza interpretare il Content-Length. */
++	char req[HTTPBUF_SIZE + 512];
++	int reqlen = snprintf(req, sizeof(req),
++		"POST %s HTTP/1.0\r\n"
++		"Host: %s:%s\r\n"
++		"Content-Type: application/xml\r\n"
++		"Content-Length: %zu\r\n"
++		"Connection: close\r\n"
++		"\r\n"
++		"%s",
++		path, host, port, strlen(postbuf), postbuf);
++	if (reqlen < 0 || reqlen >= (int)sizeof(req)) { close(fd); return -1; }
++
++	int off = 0;
++	while (off < reqlen) {
++		ssize_t w = write(fd, req + off, reqlen - off);
++		if (w < 0) { if (errno == EINTR) continue; close(fd); return -1; }
++		off += w;
++	}
++
++	/* Leggi l'intera risposta (headers + corpo). */
++	char resp[HTTPBUF_SIZE * 2];
++	int total = 0;
++	for (;;) {
++		if (total >= (int)sizeof(resp) - 1) break;
++		ssize_t r = read(fd, resp + total, sizeof(resp) - 1 - total);
++		if (r < 0) { if (errno == EINTR) continue; close(fd); return -1; }
++		if (r == 0) break;
++		total += r;
++	}
++	close(fd);
++	resp[total] = 0;
++
++	/* Status line: "HTTP/1.x NNN ..." */
++	int status = 0;
++	if (total < 12 || sscanf(resp, "HTTP/%*d.%*d %d", &status) != 1) return -1;
++	if (status != 200) return -1;
++
++	/* Il corpo comincia dopo la riga vuota. */
++	char *sep = strstr(resp, "\r\n\r\n");
++	int hdrlen = sep ? (sep - resp) + 4 : total;
++	int blen = total - hdrlen;
++	if (blen < 0) blen = 0;
++	if (blen > bodycap) blen = bodycap;
++	if (blen > 0) memcpy(body, resp + hdrlen, blen);
++	return blen;
++}
++
+ #define GRXML_SET 1
+ #define GRXML_GET 2
+ 
+@@ -69,22 +182,14 @@ int grxml_send(char *url,int method,char *varname,char *vartype,char *varvalue,i
+ 	}
+ 	postbuf[HTTPBUF_SIZE-1]=0;
+ 
+-	ctxt=xmlNanoHTTPMethod(url, "POST", postbuf, &content_type,NULL,strlen(postbuf)  ); 
+-	if (!ctxt) { fprintf(stderr,"blad http\n"); return(0); }
+-
+-	fflush(stdout); fflush(stderr); 
+-	ret = xmlNanoHTTPReturnCode(ctxt);
+-
+-	if (content_type) {  xmlFree(content_type); }
+-	if (ret!=200) {
+-		xmlNanoHTTPClose(ctxt);
+-		return(0);
+-	}
+-
+-	len = xmlNanoHTTPRead(ctxt, outbuf, sizeof(outbuf));
+-	xmlNanoHTTPClose(ctxt);
++	(void)ctxt; (void)content_type;
++	fflush(stdout); fflush(stderr);
+ 
++	/* OsmoTetraUbuntu: era xmlNanoHTTPMethod/ReturnCode/Read/Close, rimossi
++	 * da libxml2 2.14. xmlrpc_http_post restituisce i byte del corpo, o -1. */
++	len = xmlrpc_http_post(url, postbuf, outbuf, sizeof(outbuf));
+ 	if (len<1) {
++		fprintf(stderr,"blad http\n");
+ 		return(0);
+ 	}
+ 
+diff --git a/telive_receiver.h b/telive_receiver.h
+index 1114028..42eea59 100644
+--- a/telive_receiver.h
++++ b/telive_receiver.h
+@@ -1,5 +1,4 @@
+ #include <libxml/xmlmemory.h>
+-#include <libxml/nanohttp.h>
+ #include <libxml/tree.h>
+ #include <libxml/parser.h>
+ #include <libxml/xmlerror.h>

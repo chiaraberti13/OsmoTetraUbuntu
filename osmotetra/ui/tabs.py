@@ -8,14 +8,18 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
     QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
-from .. import deps
+from .. import deps, paths
 from ..config import MAX_CHANNELS, Channel, Config
 from .widgets import KHzSpinBox, MHzSpinBox, hint
 
@@ -607,6 +611,118 @@ class SystemTab(QWidget):
         term.font = self.font_name.text().strip() or "Monospace"
         term.font_size = self.font_size.value()
         cfg.recording.tetrad_enabled = self.tetrad.isChecked()
+
+
+class DecryptTab(QWidget):
+    """Decrittazione a chiave nota e dump della voce (funzioni di telive-2)."""
+
+    changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.enabled = QCheckBox("Decifra le chiamate con le chiavi del keyfile")
+        self.keyfile = QLineEdit()
+        self.keyfile.setPlaceholderText(
+            "vuoto = sample_keyfile di osmo-tetra-sq5bpf-2 (solo esempio)")
+        browse = QPushButton("Sfoglia...")
+        browse.clicked.connect(self._browse)
+        load_sample = QPushButton("Carica l'esempio")
+        load_sample.clicked.connect(self._load_sample)
+
+        self.preview = QPlainTextEdit()
+        self.preview.setReadOnly(True)
+        self.preview.setMaximumHeight(160)
+        font = QFont("Monospace"); font.setStyleHint(QFont.TypeWriter); font.setPointSize(9)
+        self.preview.setFont(font)
+
+        self.dump_voice = QCheckBox("Salva una copia grezza del traffico voce")
+        self.dump_dir = QLineEdit()
+        self.dump_dir.setPlaceholderText("vuoto = <dati>/tetra/dump")
+
+        warn = QGroupBox("⚠ Uso legittimo")
+        warn_layout = QVBoxLayout(warn)
+        warn_layout.addWidget(hint(
+            "La decrittazione funziona <b>solo a chiave nota</b>: devi fornire "
+            "tu chiavi che già possiedi. Non rompe alcuna cifratura. Usala solo "
+            "su traffico che sei autorizzato a decifrare — reti proprie, banchi "
+            "di prova, ricerca autorizzata. La responsabilità è di chi la usa."
+        ))
+
+        key_box = QGroupBox("Chiavi")
+        key_form = QFormLayout(key_box)
+        key_form.addRow(self.enabled)
+        row = QHBoxLayout()
+        row.addWidget(self.keyfile, 1)
+        row.addWidget(browse)
+        row.addWidget(load_sample)
+        key_form.addRow("Keyfile:", row)
+        key_form.addRow("Anteprima:", self.preview)
+        key_form.addRow("", hint(
+            "Formato: righe <tt>network mcc … mnc … ksg_type …</tt> e "
+            "<tt>key mcc … mnc … key &lt;80 bit esadecimali&gt;</tt>. "
+            "Il modello completo è nel sample_keyfile di osmo-tetra-sq5bpf-2."
+        ))
+
+        dump_box = QGroupBox("Dump della voce")
+        dump_form = QFormLayout(dump_box)
+        dump_form.addRow(self.dump_voice)
+        dump_form.addRow("Directory:", self.dump_dir)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(warn)
+        layout.addWidget(key_box)
+        layout.addWidget(dump_box)
+        layout.addStretch(1)
+
+        self.enabled.stateChanged.connect(self._on_toggle)
+        self.dump_voice.stateChanged.connect(self.changed)
+        self.keyfile.textChanged.connect(self._on_keyfile_changed)
+        self.dump_dir.textChanged.connect(self.changed)
+
+    def _on_toggle(self, *_):
+        self._refresh_preview()
+        self.changed.emit()
+
+    def _on_keyfile_changed(self, *_):
+        self._refresh_preview()
+        self.changed.emit()
+
+    def _browse(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Scegli il keyfile", "", "Tutti (*)")
+        if path:
+            self.keyfile.setText(path)
+
+    def _load_sample(self):
+        self.keyfile.setText(str(paths.sample_keyfile()))
+
+    def _refresh_preview(self):
+        path = self.keyfile.text().strip() or str(paths.sample_keyfile())
+        try:
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+            # Non mostrare per intero chiavi lunghissime: bastano le prime righe.
+            lines = text.splitlines()
+            shown = "\n".join(lines[:40])
+            if len(lines) > 40:
+                shown += f"\n… ({len(lines) - 40} righe in più)"
+            self.preview.setPlainText(shown)
+        except OSError:
+            self.preview.setPlainText(f"(impossibile leggere {path})")
+
+    def load(self, cfg: Config) -> None:
+        d = cfg.decrypt
+        self.enabled.setChecked(d.enabled)
+        self.keyfile.setText(d.keyfile)
+        self.dump_voice.setChecked(d.dump_voice)
+        self.dump_dir.setText(d.dump_dir)
+        self._refresh_preview()
+
+    def collect(self, cfg: Config) -> None:
+        d = cfg.decrypt
+        d.enabled = self.enabled.isChecked()
+        d.keyfile = self.keyfile.text().strip()
+        d.dump_voice = self.dump_voice.isChecked()
+        d.dump_dir = self.dump_dir.text().strip()
 
 
 def _centered(widget: QWidget) -> QWidget:

@@ -182,13 +182,13 @@ def run_checks() -> list[Check]:
 
     checks.append(_check_binary(
         "tetra-rx", paths.tetra_rx(),
-        "esegui ./install.sh per compilare osmo-tetra-sq5bpf"))
+        "esegui ./install.sh per compilare osmo-tetra-sq5bpf-2"))
 
     checks.append(Check(
         "simdemod3", paths.simdemod().is_file(),
         str(paths.simdemod()) if paths.simdemod().is_file()
         else f"non trovato: {paths.simdemod()}",
-        hint="esegui ./install.sh per clonare osmo-tetra-sq5bpf",
+        hint="esegui ./install.sh per clonare osmo-tetra-sq5bpf-2",
     ))
 
     checks.append(_check_binary(

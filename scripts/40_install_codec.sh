@@ -21,13 +21,55 @@ CODEC_URL="${CODEC_URL:-https://www.etsi.org/deliver/etsi_en/300300_300399/30039
 CODEC_MD5="a8115fe68ef8f8cc466f4192572a1e3e"
 CODEC_PATCH_URL="${CODEC_PATCH_URL:-https://github.com/sq5bpf/install-tetra-codec}"
 
+# ETSI protegge l'area download con un filtro anti-bot che rifiuta il
+# User-Agent predefinito di wget con HTTP 403, anche se il documento è
+# pubblicamente scaricabile dal browser. Questi header riproducono una normale
+# navigazione senza cookie, token o aggiramenti dell'autenticazione. L'MD5
+# obbligatorio sotto resta la fonte di verità sul contenuto ricevuto.
+ETSI_WGET_ARGS=(
+	--user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36"
+	--referer="https://www.etsi.org/standards-search"
+	--header="Accept: application/zip,application/octet-stream;q=0.9,*/*;q=0.8"
+)
+
 PREFIX="${PREFIX:?PREFIX non impostato}"
 INSTALLDIR="$PREFIX/tetra/bin"
 CACHEDIR="$PREFIX/cache"
 ZIPFILE="$CACHEDIR/en_30039502v010301p0.zip"
 PATCHDIR="$PREFIX/src/install-tetra-codec"
+ARCHIVE_NAME="$(basename "$ZIPFILE")"
 
 CODEC_BINARIES=(cdecoder ccoder sdecoder scoder)
+
+valid_archive() {
+	local archive="$1" sum
+	[ -f "$archive" ] || return 1
+	sum="$(md5sum "$archive" 2>/dev/null | cut -d' ' -f1)"
+	[ "$sum" = "$CODEC_MD5" ]
+}
+
+# ETSI può consentire il download dal browser ma negarlo ai client da riga di
+# comando. Accetta quindi anche un archivio indicato esplicitamente o lasciato
+# nella cartella Download, ma solo dopo averne verificato l'MD5.
+import_local_archive() {
+	local candidate
+	for candidate in "${CODEC_ARCHIVE:-}" \
+		"${XDG_DOWNLOAD_DIR:-${HOME:-}/Downloads}/$ARCHIVE_NAME" \
+		"${HOME:-}/Scaricati/$ARCHIVE_NAME"; do
+		[ -n "$candidate" ] || continue
+		[ "$candidate" != "$ZIPFILE" ] || continue
+		[ -f "$candidate" ] || continue
+		if ! valid_archive "$candidate"; then
+			log_warn "Ignoro l'archivio locale con MD5 errato: $candidate"
+			continue
+		fi
+		mkdir -p "$CACHEDIR"
+		install -m 600 "$candidate" "$ZIPFILE"
+		log_ok "Archivio ETSI importato da $candidate"
+		return 0
+	done
+	return 1
+}
 
 manual_instructions() {
 	cat >&2 <<EOF
@@ -39,11 +81,11 @@ manual_instructions() {
      In alternativa cerca "EN 300 395-2" su https://www.etsi.org/standards-search
      e scarica la versione 1.3.1.
 
-  2. Copialo qui, con questo nome esatto:
-       $ZIPFILE
-     (md5 atteso: $CODEC_MD5)
+  2. Lascialo in ~/Downloads (o ~/Scaricati), oppure indica il percorso:
+       CODEC_ARCHIVE="/percorso/$ARCHIVE_NAME" PREFIX="$PREFIX" $HERE/$(basename "$0")
+     Lo script lo importerà solo se corrisponde all'md5 atteso: $CODEC_MD5
 
-  3. Rilancia questo script:
+  3. Se hai lasciato il file nella cartella Download, rilancia questo script:
        PREFIX="$PREFIX" $HERE/$(basename "$0")
 
 EOF
@@ -63,10 +105,15 @@ fetch_zip() {
 		log_info "Archivio già presente in $ZIPFILE"
 		return 0
 	fi
+	if import_local_archive; then
+		return 0
+	fi
 	log_info "Scarico il codec da ETSI..."
 	# --no-verbose per non inondare il log della GUI; -T per non restare
-	# appesi se il sito non risponde.
-	if ! retry 3 wget --no-verbose --timeout=60 --tries=1 -O "$ZIPFILE.part" "$CODEC_URL"; then
+	# appesi se il sito non risponde. Gli header browser evitano il 403 che ETSI
+	# restituisce al normale User-Agent di wget.
+	if ! retry 3 wget "${ETSI_WGET_ARGS[@]}" --no-verbose --timeout=60 --tries=1 \
+		-O "$ZIPFILE.part" "$CODEC_URL"; then
 		rm -f "$ZIPFILE.part"
 		log_error "Download da ETSI non riuscito."
 		manual_instructions

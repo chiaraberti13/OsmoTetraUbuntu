@@ -133,6 +133,36 @@ rtl_tcp -a 0.0.0.0 -p 1234
 lascia quella finestra aperta e, nel lanciatore, imposta **Dispositivo** =
 `rtl_tcp=INDIRIZZO_HOST:1234` (es. `rtl_tcp=192.168.64.1:1234`).
 
+### macOS (Apple Silicon, M1–M4) — variante nativa
+
+Su un Mac con Apple Silicon puoi usare OsmoTetra **direttamente**, senza
+macchina virtuale: colleghi la chiavetta RTL-SDR al Mac e su macOS non c'è il
+problema del driver DVB-T di Linux.
+
+Prerequisiti (una tantum):
+
+1. **Xcode Command Line Tools:** `xcode-select --install`
+2. **MacPorts:** installa il pacchetto per la tua versione di macOS da
+   <https://www.macports.org/install.php>, poi riapri il Terminale.
+
+Installazione e avvio:
+
+```bash
+cd OsmoTetraUbuntu
+./install_macos.sh            # scarica e compila la catena via MacPorts
+./avvia_macos.command 390.5   # oppure doppio clic sul file
+```
+
+`install_macos.sh` usa **MacPorts** — l'unico che su Apple Silicon fornisce
+insieme `gnuradio`, `gr-osmosdr` e `osmocore` (libosmocore) funzionanti — e
+applica al decoder due piccoli adattamenti macOS. `avvia_macos.command` apre
+telive nella finestra del Terminale, esattamente come su Ubuntu.
+
+> ⚠ Questa variante è **nuova e non ancora collaudata su ogni Mac**. Se un
+> passo della build fallisce, copiami l'errore: si sistema come abbiamo fatto
+> su Ubuntu. Il motore di segnale e il decoder sono gli stessi, provati, di
+> SQ5BPF.
+
 ### Decifratura a chiave nota
 
 `telive-2` può decifrare le chiamate **solo con chiavi che già possiedi**. La
@@ -275,6 +305,35 @@ rtl_tcp -a 0.0.0.0 -p 1234
 
 leave that window open and, in the launcher, set **Device** =
 `rtl_tcp=HOST_ADDRESS:1234` (e.g. `rtl_tcp=192.168.64.1:1234`).
+
+### macOS (Apple Silicon, M1–M4) — native variant
+
+On an Apple Silicon Mac you can run OsmoTetra **directly**, with no virtual
+machine: plug the RTL-SDR into the Mac — macOS has none of Linux's DVB-T driver
+problem.
+
+Prerequisites (one-time):
+
+1. **Xcode Command Line Tools:** `xcode-select --install`
+2. **MacPorts:** install the package for your macOS version from
+   <https://www.macports.org/install.php>, then reopen Terminal.
+
+Install and run:
+
+```bash
+cd OsmoTetraUbuntu
+./install_macos.sh            # downloads and builds the chain via MacPorts
+./avvia_macos.command 390.5   # or double-click the file
+```
+
+`install_macos.sh` uses **MacPorts** — the only one that ships working
+`gnuradio`, `gr-osmosdr` and `osmocore` (libosmocore) together on Apple Silicon
+— and applies two small macOS tweaks to the decoder. `avvia_macos.command`
+opens telive in the Terminal window, exactly like on Ubuntu.
+
+> ⚠ This variant is **new and not yet tested on every Mac**. If a build step
+> fails, send me the error: we'll fix it just like we did on Ubuntu. The signal
+> engine and the decoder are the same, proven, SQ5BPF ones.
 
 ### Known-key decryption
 

@@ -1,81 +1,36 @@
-#!/bin/bash
-# uninstall.sh - rimuove OsmoTetraUbuntu
-#
-# Per impostazione predefinita conserva le registrazioni, i log e la
-# configurazione. Usa --purge per cancellare anche quelli.
-#
-# SPDX-License-Identifier: GPL-3.0-or-later
+#!/usr/bin/env bash
+# ============================================================================
+#  uninstall.sh — rimuove OsmoTetra
+# ============================================================================
+#  Di default conserva registrazioni e log in /tetra. Usa --purge per togliere
+#  tutto, compresi i sorgenti e /tetra.
+# ============================================================================
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lib_common.sh
-. "$REPO/scripts/lib_common.sh"
-
-PREFIX="${PREFIX:-$HOME/.local/share/osmotetra}"
-BINDIR="${BINDIR:-$HOME/.local/bin}"
-APPDIR="${APPDIR:-$HOME/.local/share/applications}"
-ICONDIR="${ICONDIR:-$HOME/.local/share/icons/hicolor/scalable/apps}"
-CONFDIR="${CONFDIR:-$HOME/.config/osmotetra}"
-DRY_RUN=0
+OSMOTETRA_HOME="${OSMOTETRA_HOME:-$HOME/telive2}"
+BIN="$HOME/.local/bin/osmotetra"
+DESKTOP="$HOME/.local/share/applications/osmotetra.desktop"
 PURGE=0
-BLACKLIST=/etc/modprobe.d/osmotetra-blacklist-dvb.conf
+[ "${1:-}" = "--purge" ] && PURGE=1
 
-usage() {
-	cat <<EOF
-Uso: ./uninstall.sh [opzioni]
+echo "Rimozione di OsmoTetra…"
+rm -f "$BIN" "$DESKTOP"
+update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+echo "  -> lanciatore e voce di menu rimossi"
 
-  --prefix DIR   directory di installazione (default: $HOME/.local/share/osmotetra)
-  --purge        rimuove anche registrazioni, log e configurazione
-  --dry-run      mostra le azioni senza eseguirle
-  -h, --help     questo messaggio
-EOF
-}
-
-while [ $# -gt 0 ]; do
-	case "$1" in
-		--prefix)   PREFIX="${2:?}"; shift 2 ;;
-		--prefix=*) PREFIX="${1#*=}"; shift ;;
-		--purge)    PURGE=1; shift ;;
-		--dry-run)  DRY_RUN=1; shift ;;
-		-h|--help)  usage; exit 0 ;;
-		*)          log_error "opzione sconosciuta: $1"; usage >&2; exit 2 ;;
-	esac
-done
-export DRY_RUN
-
-# Se l'installazione è avvenuta con percorsi non standard, il manifest li sa.
-if [ -f "$PREFIX/install-manifest" ]; then
-	# shellcheck disable=SC1090
-	. "$PREFIX/install-manifest"
-fi
-
-log_step "Rimozione di OsmoTetraUbuntu"
-[ "$DRY_RUN" = "1" ] && log_warn "modalità dry-run: nessuna modifica"
-
-run rm -f "$BINDIR/osmotetra"
-run rm -f "$APPDIR/osmotetra.desktop"
-run rm -f "$ICONDIR/osmotetra.svg"
-log_ok "Launcher e voce di menu rimossi"
-
-run rm -rf "$PREFIX/lib"
-log_ok "Applicazione rimossa"
-
-if [ "$PURGE" = "1" ]; then
-	log_warn "--purge: rimuovo sorgenti, registrazioni, log e configurazione"
-	run rm -rf "$PREFIX" "$CONFDIR"
-	if [ -f "$BLACKLIST" ]; then
-		require_sudo
-		run ${SUDO:+$SUDO} rm -f "$BLACKLIST"
-		log_ok "Blacklist DVB-T rimossa"
-	fi
-	log_ok "Rimozione completa"
+if [ "$PURGE" -eq 1 ]; then
+  rm -rf "$OSMOTETRA_HOME"
+  echo "  -> sorgenti e log rimossi ($OSMOTETRA_HOME)"
+  if [ -d /tetra ]; then
+    sudo rm -rf /tetra && echo "  -> /tetra rimossa (registrazioni e log)"
+  fi
+  # togli la riga di PATH aggiunta a ~/.bashrc
+  sed -i '/# OsmoTetra: decoder vocali TETRA/,+1d' "$HOME/.bashrc" 2>/dev/null || true
 else
-	log_info "Conservati (usa --purge per rimuoverli):"
-	log_info "  sorgenti upstream e binari: $PREFIX/src"
-	log_info "  registrazioni e log:        $PREFIX/tetra"
-	log_info "  configurazione e profili:   $CONFDIR"
-	log_info "  blacklist DVB-T:            $BLACKLIST"
+  echo "  Conservati (usa --purge per rimuoverli):"
+  echo "    sorgenti e log: $OSMOTETRA_HOME"
+  echo "    registrazioni e log TETRA: /tetra"
 fi
 
-log_info "I pacchetti installati con apt non vengono rimossi."
-log_info "Per toglierli:  sudo apt-get autoremove gnuradio gr-osmosdr libosmocore-dev"
+echo "I pacchetti apt non vengono rimossi. Per toglierli:"
+echo "  sudo apt-get autoremove gnuradio gr-osmosdr libosmocore-dev python3-pyqt5"

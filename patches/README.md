@@ -1,9 +1,11 @@
 # Patch applicate ai sorgenti upstream
 
 Queste patch vengono applicate dai sorgenti clonati da GitHub durante
-l'installazione (`scripts/30_build_telive.sh`), con `patch -p1 -N` — che è
-idempotente: se la patch è già applicata non viene riapplicata, quindi un
-secondo `./install.sh` non fallisce.
+l'installazione (`install.sh`, funzione `maybe_patch_nanohttp`), con
+`patch -p1 -N` — che è idempotente: se la patch è già applicata non viene
+riapplicata, quindi un secondo `./install.sh` non fallisce. La patch viene
+applicata **solo quando serve**, cioè quando la libxml2 di sistema non ha più
+il modulo `nanohttp` (Ubuntu 25.10 e successive).
 
 Non modifichiamo i sorgenti upstream nel loro repository: le patch stanno qui
 e vengono sovrapposte a ogni build, così un aggiornamento dei sorgenti
@@ -34,9 +36,9 @@ libxml2 privati di `nanohttp.h`, e la scoperta del ricevitore
 numero di canali corretti.
 
 **Se smette di applicarsi.** Significa che l'autore ha modificato quelle righe
-a monte. `scripts/30_build_telive.sh` se ne accorge e si ferma con un
-messaggio esplicito invece di lasciare un errore di compilazione oscuro. In
-quel caso la patch va rigenerata sulle nuove righe:
+a monte. `install.sh` (funzione `maybe_patch_nanohttp`) se ne accorge e si
+ferma con un messaggio esplicito invece di lasciare un errore di compilazione
+oscuro. In quel caso la patch va rigenerata sulle nuove righe:
 
 ```sh
 # in un clone di telive-2 con le modifiche riapplicate a mano

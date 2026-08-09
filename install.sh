@@ -1,234 +1,278 @@
-#!/bin/bash
-# install.sh - installazione di OsmoTetraUbuntu su Ubuntu 24.04 e successive
+#!/usr/bin/env bash
+# ============================================================================
+#  install.sh — installazione automatica di OsmoTetra
+# ============================================================================
+#  Catena completa di SQ5BPF: osmo-tetra-sq5bpf-2 + codec vocale ETSI +
+#  telive-2, con decifratura vocale a CHIAVE NOTA. In più: il lanciatore
+#  grafico di OsmoTetra e la voce nel menu applicazioni.
 #
-# Idempotente: si può rilanciare per aggiornare i sorgenti upstream e
-# ricompilare. Va eseguito come utente normale; usa sudo solo per apt e udev.
+#  Testato su Ubuntu 24.04 (x86) e 25.10 (ARM64/x86).
 #
-# SPDX-License-Identifier: GPL-3.0-or-later
+#  Uso:   ./install.sh          (come UTENTE NORMALE, non con sudo)
+#         chiede la password sudo solo per apt e per creare /tetra.
+#
+#  DISCLAIMER: la decifratura funziona solo con chiave GIÀ NOTA; questi
+#  strumenti non craccano il TETRA. Usalo solo dove consentito dalla legge.
+# ============================================================================
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lib_common.sh
-. "$REPO/scripts/lib_common.sh"
+# ---------------------------------------------------------------------------
+# Impostazioni
+# ---------------------------------------------------------------------------
+OSMO_REPO="https://github.com/sq5bpf/osmo-tetra-sq5bpf-2.git"
+TELIVE_REPO="https://github.com/sq5bpf/telive-2.git"
 
-PREFIX="${PREFIX:-$HOME/.local/share/osmotetra}"
-BINDIR="${BINDIR:-$HOME/.local/bin}"
-APPDIR="${APPDIR:-$HOME/.local/share/applications}"
-ICONDIR="${ICONDIR:-$HOME/.local/share/icons/hicolor/scalable/apps}"
-DRY_RUN=0
-SKIP_APT=0
-SKIP_UDEV=0
-WITH_CODEC=0
+OSMOTETRA_HOME="${OSMOTETRA_HOME:-$HOME/telive2}"
+OSMO_DIR="$OSMOTETRA_HOME/osmo-tetra-sq5bpf-2"
+TELIVE_DIR="$OSMOTETRA_HOME/telive-2"
 
-usage() {
-	cat <<EOF
-Uso: ./install.sh [opzioni]
+HERE="$(cd "$(dirname "$0")" && pwd)"
+NANOHTTP_PATCH="$HERE/patches/telive2-nanohttp-to-socket.diff"
 
-  --prefix DIR    directory di installazione (default: $HOME/.local/share/osmotetra)
-  --with-codec    tenta anche l'installazione del codec vocale ACELP da ETSI
-  --skip-apt      non installare i pacchetti di sistema
-  --skip-udev     non toccare udev / moduli kernel
-  --dry-run       mostra le azioni senza eseguirle
-  -h, --help      questo messaggio
+ETSI_URL="http://www.etsi.org/deliver/etsi_en/300300_300399/30039502/01.03.01_60/en_30039502v010301p0.zip"
+ETSI_MD5="a8115fe68ef8f8cc466f4192572a1e3e"
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
-Variabili d'ambiente riconosciute: PREFIX, BINDIR, APPDIR, ICONDIR,
-OSMO_TETRA_URL, TELIVE_URL, CODEC_URL.
+JOBS="$(nproc)"
+COMPAT_CFLAGS=""
+
+LOG_DIR="$OSMOTETRA_HOME/logs"
+mkdir -p "$LOG_DIR"
+exec > >(tee -a "$LOG_DIR/install.log") 2>&1
+echo "==== install.sh — $(date '+%Y-%m-%d %H:%M:%S') ===="
+
+step() { echo; echo "============================================================"; echo " $*"; echo "============================================================"; }
+info() { echo "  -> $*"; }
+
+# ---------------------------------------------------------------------------
+# Compatibilità compilatore (GCC 13/14/15): riporta a warning i costrutti C
+# "vecchi" di SQ5BPF che GCC recente tratta come errore. Tiene solo i flag che
+# il gcc locale accetta.
+# ---------------------------------------------------------------------------
+detect_compat_cflags() {
+  local cc="${CC:-cc}" out="" f tmp
+  tmp="$(mktemp -d)"
+  printf 'int main(void){return 0;}\n' > "$tmp/probe.c"
+  for f in -std=gnu17 \
+           -Wno-error=implicit-int -Wno-error=implicit-function-declaration \
+           -Wno-error=int-conversion -Wno-error=incompatible-pointer-types \
+           -Wno-error=return-mismatch -Wno-error=declaration-missing-parameter-type \
+           -Wno-error=old-style-definition; do
+    "$cc" "$f" -c "$tmp/probe.c" -o "$tmp/probe.o" >/dev/null 2>&1 && out="$out $f"
+  done
+  rm -rf "$tmp"
+  echo "${out# }"
+}
+
+inject_cflags() {
+  local mk="$1"
+  [ -f "$mk" ] || return 0
+  [ -n "$COMPAT_CFLAGS" ] || return 0
+  grep -q -- '-std=gnu17' "$mk" && return 0
+  sed -i "0,/^CFLAGS[[:space:]]*=/s//& ${COMPAT_CFLAGS} /" "$mk"
+  info "Compatibilità compilatore applicata a $(basename "$(dirname "$mk")")/$(basename "$mk")"
+}
+
+# telive_receiver.h usa time_t senza includere <time.h>: sulle glibc recenti
+# la build fallisce con "unknown type name 'time_t'".
+patch_telive_includes() {
+  local h="$TELIVE_DIR/telive_receiver.h"
+  [ -f "$h" ] || return 0
+  grep -q '#include <time.h>' "$h" && return 0
+  if grep -q '#include <stdint.h>' "$h"; then
+    sed -i 's|#include <stdint.h>|#include <stdint.h>\n#include <time.h>|' "$h"
+  else
+    sed -i '1i #include <time.h>' "$h"
+  fi
+  info "Aggiunto #include <time.h> a telive_receiver.h"
+}
+
+# libxml2 2.14 (Ubuntu 25.10) ha rimosso il modulo nanohttp che telive-2 usa
+# per l'XMLRPC verso il flowgraph: senza, telive non compila. Se nanohttp non
+# c'è, applichiamo la patch che lo sostituisce con una POST via socket POSIX.
+maybe_patch_nanohttp() {
+  local probe tmp
+  tmp="$(mktemp -d)"
+  cat > "$tmp/p.c" <<'EOF'
+#include <libxml/nanohttp.h>
+int main(void){ xmlNanoHTTPInit(); return 0; }
 EOF
+  if cc "$tmp/p.c" $(xml2-config --cflags --libs 2>/dev/null) -o "$tmp/p" >/dev/null 2>&1; then
+    info "libxml2 con nanohttp: nessuna patch necessaria."
+    rm -rf "$tmp"; return 0
+  fi
+  rm -rf "$tmp"
+  info "libxml2 senza nanohttp (>= 2.14): applico la patch socket a telive-2."
+  if [ ! -f "$NANOHTTP_PATCH" ]; then
+    echo "ATTENZIONE: patch nanohttp non trovata ($NANOHTTP_PATCH): la build di telive potrebbe fallire."
+    return 0
+  fi
+  # idempotente: se già applicata (patch inversa applicabile), non rifare.
+  if patch -p1 -R --dry-run -d "$TELIVE_DIR" < "$NANOHTTP_PATCH" >/dev/null 2>&1; then
+    info "Patch nanohttp già applicata."
+  elif patch -p1 -N -d "$TELIVE_DIR" < "$NANOHTTP_PATCH"; then
+    info "Patch nanohttp applicata."
+  else
+    echo "ERRORE: la patch nanohttp non si applica pulita. Vedi patches/README.md."
+    exit 1
+  fi
 }
 
-parse_args() {
-	while [ $# -gt 0 ]; do
-		case "$1" in
-			--prefix)     PREFIX="${2:?--prefix richiede un argomento}"; shift 2 ;;
-			--prefix=*)   PREFIX="${1#*=}"; shift ;;
-			--with-codec) WITH_CODEC=1; shift ;;
-			--skip-apt)   SKIP_APT=1; shift ;;
-			--skip-udev)  SKIP_UDEV=1; shift ;;
-			--dry-run)    DRY_RUN=1; shift ;;
-			-h|--help)    usage; exit 0 ;;
-			*)            log_error "opzione sconosciuta: $1"; usage >&2; exit 2 ;;
-		esac
-	done
-	export PREFIX DRY_RUN
+# ---------------------------------------------------------------------------
+# 0) Controlli
+# ---------------------------------------------------------------------------
+if [ "$(id -u)" -eq 0 ]; then
+  echo "ERRORE: non lanciarmi con sudo/root. Eseguimi come utente normale:  ./install.sh"
+  exit 1
+fi
+step "0) Sistema"
+if ! grep -qiE 'ubuntu|debian' /etc/os-release 2>/dev/null; then
+  echo "ATTENZIONE: distribuzione non Ubuntu/Debian: proseguo ma apt potrebbe non funzionare."
+fi
+info "Utente: $(id -un)   Core: $JOBS   Arch: $(uname -m)   Home OsmoTetra: $OSMOTETRA_HOME"
+
+# ---------------------------------------------------------------------------
+# 1) Dipendenze
+# ---------------------------------------------------------------------------
+step "1) Dipendenze (apt)"
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential gcc make git pkg-config patch unzip wget ca-certificates \
+  libosmocore-dev libncurses-dev libxml2-dev \
+  librtlsdr-dev rtl-sdr libusb-1.0-0-dev \
+  socat alsa-utils sox vorbis-tools \
+  gnuradio gr-osmosdr python3-pyqt5
+info "Dipendenze installate."
+COMPAT_CFLAGS="$(detect_compat_cflags)"
+[ -n "$COMPAT_CFLAGS" ] && info "Flag compat compilatore: $COMPAT_CFLAGS"
+
+# ---------------------------------------------------------------------------
+# 2) Sorgenti
+# ---------------------------------------------------------------------------
+step "2) Sorgenti (osmo-tetra-sq5bpf-2 e telive-2)"
+clone_or_update() {
+  local url="$1" dir="$2"
+  if [ -d "$dir/.git" ]; then info "Aggiorno $dir"; git -C "$dir" pull --ff-only || true
+  else info "Clono $url"; git clone --depth 1 "$url" "$dir"; fi
 }
+clone_or_update "$OSMO_REPO" "$OSMO_DIR"
+clone_or_update "$TELIVE_REPO" "$TELIVE_DIR"
 
-install_python_app() {
-	log_step "Applicazione OsmoTetra"
+# ---------------------------------------------------------------------------
+# 3) osmo receiver (tetra-rx)
+# ---------------------------------------------------------------------------
+step "3) Compilo l'osmo receiver (tetra-rx)"
+inject_cflags "$OSMO_DIR/src/Makefile"
+make -C "$OSMO_DIR/src" -j"$JOBS"
+[ -x "$OSMO_DIR/src/tetra-rx" ] && info "OK: tetra-rx" || { echo "ERRORE: tetra-rx non compilato"; exit 1; }
 
-	local libdir="$PREFIX/lib"
-	run mkdir -p "$libdir" "$BINDIR"
+# ---------------------------------------------------------------------------
+# 4) Codec vocale ETSI (cdecoder / sdecoder)
+# ---------------------------------------------------------------------------
+step "4) Codec vocale ETSI"
+PATCHDIR="$OSMO_DIR/etsi_codec-patches"
+ZIP="$PATCHDIR/etsi_tetra_codec.zip"
+check_md5() { [ "$(md5sum "$1" | awk '{print $1}')" = "$ETSI_MD5" ]; }
+got=0
+info "Scarico il codec da ETSI…"
+if wget -q -U "$UA" -O "$ZIP" "$ETSI_URL" && check_md5 "$ZIP"; then got=1
+else
+  info "ETSI non raggiungibile: provo il mirror archive.org…"
+  wget -q -U "$UA" -O "$ZIP" "https://web.archive.org/web/2id_/$ETSI_URL" && check_md5 "$ZIP" && got=1 || true
+fi
+if [ "$got" -eq 1 ]; then
+  info "Zip ETSI verificato."
+  sed -i 's/\[ ! -f $LOCAL_FILE \]/false/g; s/print "MD5sum/echo "MD5sum/g' "$PATCHDIR/download_and_patch.sh"
+else
+  info "Pre-download non riuscito: lo script scaricherà da solo."
+  sed -i 's/\[ ! -f $LOCAL_FILE \]/true/g; s/wget -O/wget -U "Mozilla\/5.0" -O/g; s/print "MD5sum/echo "MD5sum/g' "$PATCHDIR/download_and_patch.sh"
+fi
+( cd "$PATCHDIR" && sh ./download_and_patch.sh )
+inject_cflags "$OSMO_DIR/codec/c-code/Makefile"
+make -C "$OSMO_DIR/codec/c-code" -j"$JOBS"
+[ -x "$OSMO_DIR/codec/c-code/cdecoder" ] && [ -x "$OSMO_DIR/codec/c-code/sdecoder" ] \
+  && info "OK: cdecoder e sdecoder" || { echo "ERRORE: codec non compilato"; exit 1; }
 
-	if [ "$DRY_RUN" = "1" ]; then
-		log_info "[dry-run] copio osmotetra/ e gnuradio/ in $libdir"
-		log_info "[dry-run] creo il launcher $BINDIR/osmotetra"
-		return 0
-	fi
+# ---------------------------------------------------------------------------
+# 5) telive
+# ---------------------------------------------------------------------------
+step "5) Compilo telive"
+inject_cflags "$TELIVE_DIR/Makefile"
+patch_telive_includes
+maybe_patch_nanohttp
+make -C "$TELIVE_DIR" -j"$JOBS"
+[ -x "$TELIVE_DIR/telive" ] && info "OK: telive" || { echo "ERRORE: telive non compilato"; exit 1; }
 
-	# Copia invece di symlink: così l'app continua a funzionare anche se la
-	# copia di lavoro del repository viene spostata o cancellata.
-	rm -rf "$libdir/osmotetra" "$libdir/gnuradio"
-	cp -r "$REPO/osmotetra" "$libdir/osmotetra"
-	cp -r "$REPO/gnuradio"  "$libdir/gnuradio"
-	cp -r "$REPO/scripts"   "$libdir/scripts"
-	cp -r "$REPO/patches"   "$libdir/patches"
-	find "$libdir" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-	chmod 755 "$libdir/gnuradio/osmotetra_rx.py" "$libdir"/scripts/*.sh 2>/dev/null || true
+# ---------------------------------------------------------------------------
+# 6) /tetra e binari nel PATH
+# ---------------------------------------------------------------------------
+step "6) /tetra e binari"
+sudo mkdir -p /tetra
+sudo chown "$(id -un):$(id -gn)" /tetra
+mkdir -p /tetra/in /tetra/out /tetra/log /tetra/tmp /tetra/bin
+touch /tetra/log/telive.log
+cp -v "$TELIVE_DIR"/bin/* /tetra/bin/ 2>/dev/null || true
+cp -v "$OSMO_DIR/codec/c-code/cdecoder" "$OSMO_DIR/codec/c-code/sdecoder" /tetra/bin/
+cp -v "$TELIVE_DIR/telive" /tetra/bin/
+chmod +x /tetra/bin/* || true
+if ! grep -q '/tetra/bin' "$HOME/.bashrc" 2>/dev/null; then
+  printf '\n# OsmoTetra: decoder vocali TETRA\nexport PATH="$PATH:/tetra/bin"\n' >> "$HOME/.bashrc"
+  info "Aggiunto /tetra/bin a ~/.bashrc (riapri il terminale o: source ~/.bashrc)"
+fi
 
-	cat > "$BINDIR/osmotetra" <<EOF
-#!/bin/sh
-# Launcher generato da OsmoTetraUbuntu — non modificare a mano.
-OSMOTETRA_PREFIX="$PREFIX"
-export OSMOTETRA_PREFIX
-PYTHONPATH="$libdir\${PYTHONPATH:+:\$PYTHONPATH}"
-export PYTHONPATH
+# ---------------------------------------------------------------------------
+# 7) Lanciatore OsmoTetra + voce nel menu
+# ---------------------------------------------------------------------------
+step "7) Lanciatore grafico e voce di menu"
+install -m 0755 "$HERE/osmotetra_rx.py"       "$OSMOTETRA_HOME/osmotetra_rx.py"
+install -m 0755 "$HERE/osmotetra_launcher.py" "$OSMOTETRA_HOME/osmotetra_launcher.py"
+install -m 0755 "$HERE/avvia.sh"              "$OSMOTETRA_HOME/avvia.sh"
 
-# Su una Ubuntu 24.04 standard 'python3' va benissimo. Ma se sulla macchina
-# convive un altro Python (pyenv, conda, una build da sorgente) che occupa il
-# PATH, quello non ha i moduli di sistema e l'interfaccia non parte. Si
-# sceglie quindi il primo interprete capace di importare PyQt5.
-# OSMOTETRA_PYTHON, se impostata, ha comunque la precedenza.
-for candidate in "\$OSMOTETRA_PYTHON" python3 /usr/bin/python3 \\
-                 /usr/bin/python3.13 /usr/bin/python3.12; do
-    [ -n "\$candidate" ] || continue
-    command -v "\$candidate" >/dev/null 2>&1 || continue
-    if "\$candidate" -c 'import PyQt5' >/dev/null 2>&1; then
-        exec "\$candidate" -m osmotetra "\$@"
-    fi
-done
-
-# Nessun interprete con PyQt5: i sottocomandi testuali funzionano lo stesso e
-# il messaggio d'errore della GUI spiega cosa installare.
-exec python3 -m osmotetra "\$@"
+BIN="$HOME/.local/bin"; mkdir -p "$BIN"
+cat > "$BIN/osmotetra" <<EOF
+#!/usr/bin/env bash
+export OSMOTETRA_HOME="$OSMOTETRA_HOME"
+exec python3 "$OSMOTETRA_HOME/osmotetra_launcher.py" "\$@"
 EOF
-	chmod 755 "$BINDIR/osmotetra"
-	log_ok "Applicazione installata in $libdir"
-	log_ok "Launcher: $BINDIR/osmotetra"
+chmod +x "$BIN/osmotetra"
 
-	warn_if_not_in_path
-}
-
-# Avvisa se il launcher non è raggiungibile, spiegando la causa giusta.
-#
-# Su Ubuntu il ~/.profile predefinito contiene già:
-#
-#     if [ -d "$HOME/.local/bin" ] ; then PATH="$HOME/.local/bin:$PATH" ; fi
-#
-# ma viene valutato al login. Se la directory non esisteva quando l'utente ha
-# fatto l'accesso — cioè quasi sempre, alla prima installazione — il PATH non
-# la contiene, e non la conterrà finché non si rientra. Suggerire di
-# "aggiungerlo a ~/.profile" sarebbe quindi un consiglio sbagliato: la riga
-# c'è già, e aggiungerne una seconda non risolve la sessione in corso.
-warn_if_not_in_path() {
-	case ":$PATH:" in
-		*":$BINDIR:"*) return 0 ;;
-	esac
-
-	log_warn "$BINDIR non è ancora nel PATH di questa sessione."
-
-	if [ -f "$HOME/.profile" ] && grep -q '\.local/bin' "$HOME/.profile" 2>/dev/null; then
-		log_info "Il tuo ~/.profile lo aggiunge già al login, ma la directory è"
-		log_info "stata creata adesso: basta uscire e rientrare."
-	else
-		log_info "Per renderlo permanente:"
-		log_info "  echo 'export PATH=\"\$PATH:$BINDIR\"' >> ~/.profile"
-	fi
-
-	log_info "Per usarlo subito, senza uscire dalla sessione:"
-	log_info "  export PATH=\"\$PATH:$BINDIR\""
-	log_info "Oppure avvia l'applicazione dal menu, o con il percorso completo:"
-	log_info "  $BINDIR/osmotetra"
-}
-
-install_desktop_entry() {
-	log_step "Integrazione desktop"
-	run mkdir -p "$APPDIR" "$ICONDIR"
-
-	if [ "$DRY_RUN" = "1" ]; then
-		log_info "[dry-run] installo osmotetra.desktop e l'icona"
-		return 0
-	fi
-
-	install -m 644 "$REPO/packaging/osmotetra.svg" "$ICONDIR/osmotetra.svg"
-	sed -e "s|@BINDIR@|$BINDIR|g" "$REPO/packaging/osmotetra.desktop" \
-		> "$APPDIR/osmotetra.desktop"
-	chmod 644 "$APPDIR/osmotetra.desktop"
-
-	have_cmd update-desktop-database && update-desktop-database "$APPDIR" 2>/dev/null || true
-	have_cmd gtk-update-icon-cache && gtk-update-icon-cache -qtf "${ICONDIR%/scalable/apps}" 2>/dev/null || true
-	log_ok "Voce di menu «OsmoTetra» installata"
-}
-
-write_install_manifest() {
-	[ "$DRY_RUN" = "1" ] && return 0
-	cat > "$PREFIX/install-manifest" <<EOF
-# Generato da install.sh il $(date -Is)
-PREFIX=$PREFIX
-BINDIR=$BINDIR
-APPDIR=$APPDIR
-ICONDIR=$ICONDIR
-REPO=$REPO
+APPS="$HOME/.local/share/applications"; mkdir -p "$APPS"
+cat > "$APPS/osmotetra.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=OsmoTetra
+Comment=Ricevitore TETRA (telive) — lanciatore
+Exec=$BIN/osmotetra
+Terminal=false
+Categories=HamRadio;Network;Utility;
 EOF
-}
+update-desktop-database "$APPS" >/dev/null 2>&1 || true
+info "Lanciatore: comando 'osmotetra' e voce «OsmoTetra» nel menu."
 
-final_report() {
-	log_step "Fatto"
-	echo
-	log_info "Avvia l'applicazione dal menu («OsmoTetra») oppure con:"
-	printf '        %sosmotetra%s\n' "$C_BOLD" "$C_RESET"
-	echo
-	log_info "Prima di collegare la radio, controlla le dipendenze con:"
-	printf '        %sosmotetra check%s\n' "$C_BOLD" "$C_RESET"
-	echo
-	if [ "$WITH_CODEC" = "0" ]; then
-		log_info "Il codec vocale ACELP non è stato installato: segnalazione, SDS, log e"
-		log_info "KML funzionano comunque, manca solo l'audio. Per aggiungerlo:"
-		printf '        %s./install.sh --with-codec%s\n' "$C_BOLD" "$C_RESET"
-		echo
-	fi
-	log_info "Il manuale di telive (indispensabile per l'interfaccia ncurses) è in:"
-	log_info "  $PREFIX/src/telive/telive_doc.pdf"
-}
+# ---------------------------------------------------------------------------
+# Fine
+# ---------------------------------------------------------------------------
+cat <<EOF
 
-main() {
-	parse_args "$@"
+============================================================
+ Installazione OsmoTetra completata!
+============================================================
 
-	printf '%s%sOsmoTetraUbuntu%s — installazione\n' "$C_BOLD" "$C_BLUE" "$C_RESET"
-	[ "$DRY_RUN" = "1" ] && log_warn "modalità dry-run: nessuna modifica al sistema"
+Tutto è in:  $OSMOTETRA_HOME
+   osmo-tetra-sq5bpf-2/   telive-2/   logs/   + lanciatore
 
-	refuse_root
-	require_ubuntu_2404
-	require_cmd git
-	log_info "Prefix: $PREFIX"
+COME USARLO
+   • Grafico:  cerca «OsmoTetra» nel menu, oppure esegui:  osmotetra
+       imposti frequenza + guadagno + dispositivo, premi Avvia → si apre telive.
+   • Riga di comando:  $OSMOTETRA_HOME/avvia.sh 390.5
 
-	run mkdir -p "$PREFIX/src"
+Se 'osmotetra' non viene trovato subito, riapri il terminale
+(oppure:  source ~/.bashrc) — serve per avere ~/.local/bin nel PATH.
 
-	if [ "$SKIP_APT" = "1" ]; then
-		log_step "Pacchetti di sistema"
-		log_info "saltati (--skip-apt)"
-	else
-		"$REPO/scripts/10_apt_deps.sh" || die "installazione dei pacchetti fallita"
-	fi
+Chiavetta in una macchina virtuale? Lasciala al sistema ospitante con
+   rtl_tcp -a 0.0.0.0 -p 1234
+e nel campo Dispositivo scrivi:  rtl_tcp=INDIRIZZO:1234
 
-	"$REPO/scripts/20_build_osmo_tetra.sh" || die "build di osmo-tetra-sq5bpf fallita"
-	"$REPO/scripts/30_build_telive.sh"     || die "build di telive fallita"
-
-	install_python_app
-	install_desktop_entry
-
-	if [ "$SKIP_UDEV" = "1" ]; then
-		log_step "Configurazione SDR"
-		log_info "saltata (--skip-udev)"
-	else
-		"$REPO/scripts/50_sdr_udev.sh" || log_warn "configurazione SDR incompleta, proseguo"
-	fi
-
-	if [ "$WITH_CODEC" = "1" ]; then
-		# Il codec è opzionale: un fallimento qui non compromette il resto.
-		"$REPO/scripts/40_install_codec.sh" || log_warn "codec vocale non installato, proseguo"
-	fi
-
-	write_install_manifest
-	final_report
-}
-
-main "$@"
+Log: $LOG_DIR/install.log
+============================================================
+EOF

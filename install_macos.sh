@@ -110,9 +110,13 @@ fi
 # ---------------------------------------------------------------------------
 step "1) Dipendenze (MacPorts) — può richiedere parecchio la prima volta"
 sudo port -N selfupdate || info "selfupdate saltato (offline?)"
+# Dipendenze generiche.
 sudo port -N install \
-  gnuradio gr-osmosdr osmocore rtl-sdr \
+  gnuradio osmocore rtl-sdr \
   socat gmake pkgconfig ncurses libxml2 sox wget
+# gr-osmosdr SOLO con RTL-SDR, SENZA UHD/USRP: l'UHD dipende da 'tecla', che su
+# Apple Silicon non compila (e non ci serve). +rtlsdr abilita la chiavetta.
+sudo port -N install gr-osmosdr +rtlsdr -uhd
 info "Pacchetti MacPorts installati."
 
 [ -x "$GMAKE" ] || die "gmake non trovato dopo l'installazione MacPorts."

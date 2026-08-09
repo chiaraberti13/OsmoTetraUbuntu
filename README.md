@@ -479,6 +479,14 @@ arrives, work backwards along the chain.
   Python (pyenv, conda, a source build) is shadowing the system one. The
   application normally detects this by itself; to force the choice,
   `OSMOTETRA_PYTHON=/usr/bin/python3.12 osmotetra`.
+- **«The SDR receiver exited right after startup» / `No devices specified`**:
+  the chain stops as soon as it starts and the `rx` stage log shows «no SDR
+  device found». No radio is reachable — this is not a parameter problem.
+  Causes: the dongle is unplugged or held by another program; the DVB-T driver
+  grabbed it (see `usb_claim_interface error -6` below); a VM that does not
+  forward USB (see the next entry); or `rtl_tcp=…` set but the server not
+  running (the message says so). The app detects this immediately and does not
+  open telive for nothing.
 - **The dongle does not show up at all, inside a virtual machine**: check with
   `lsusb | grep -i realtek` first. If nothing appears, no driver is missing —
   the device simply is not reaching the guest. Apple's **Virtualization**
@@ -1049,6 +1057,14 @@ niente, si procede a ritroso lungo la catena.
   Python (pyenv, conda, una build da sorgente) occupa il PATH al posto di
   quello di sistema. L'applicazione di norma se ne accorge da sola; per forzare
   la scelta, `OSMOTETRA_PYTHON=/usr/bin/python3.12 osmotetra`.
+- **«Il ricevitore SDR si è chiuso subito dopo l'avvio» / `No devices
+  specified`**: la catena si ferma appena avviata e nel log dello stadio `rx`
+  compare «Nessun dispositivo SDR trovato». Nessuna radio è raggiungibile — non
+  è un problema dei parametri. Cause: chiavetta staccata o occupata da un altro
+  programma; driver DVB-T che se l'è presa (vedi `usb_claim_interface error -6`
+  qui sotto); VM che non inoltra l'USB (vedi la voce seguente); oppure
+  `rtl_tcp=…` impostato ma server non avviato (il messaggio lo dice). L'app lo
+  rileva subito e non apre telive a vuoto.
 - **La chiavetta non compare per niente, dentro una macchina virtuale**:
   verifica prima con `lsusb | grep -i realtek`. Se non compare niente non
   manca nessun driver: il dispositivo non sta arrivando al sistema ospite. Il

@@ -158,6 +158,22 @@ forzare la scelta:
 OSMOTETRA_PYTHON=/usr/bin/python3.12 osmotetra
 ```
 
+### «Il ricevitore SDR si è chiuso subito dopo l'avvio» / `No devices specified`
+
+La catena si ferma appena avviata e nel log dello stadio `rx` compare
+«Nessun dispositivo SDR trovato» (a basso livello gr-osmosdr dice `No devices
+specified via device arguments`). Vuol dire che nessuna radio è raggiungibile:
+non è un problema di configurazione dei parametri.
+
+L'applicazione lo rileva subito e non apre telive a vuoto. Le cause, in ordine
+di probabilità:
+
+- la chiavetta non è collegata, oppure è occupata da un altro programma;
+- il driver DVB-T se l'è presa (vedi `usb_claim_interface error -6` più sotto);
+- sei in una macchina virtuale che non inoltra l'USB (vedi qui sotto);
+- hai impostato `rtl_tcp=…` ma il server non è in esecuzione (in quel caso il
+  messaggio lo dice: avvia `rtl_tcp` sull'altra macchina).
+
 ### La chiavetta non compare per niente (Ubuntu dentro una macchina virtuale)
 
 Prima di cercare driver, verifica se il sistema la vede proprio:

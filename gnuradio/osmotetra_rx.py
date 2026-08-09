@@ -125,7 +125,10 @@ class OsmoTetraRX(gr.top_block):
                 "  sudo apt-get install gr-osmosdr"
             )
 
-        src = osmosdr.source(args="numchan=1 " + opts.device_args)
+        try:
+            src = osmosdr.source(args="numchan=1 " + opts.device_args)
+        except RuntimeError as exc:
+            raise SystemExit(_no_device_message(opts.device_args, exc)) from exc
         src.set_time_unknown_pps(osmosdr.time_spec_t())
         src.set_sample_rate(self.samp_rate)
         src.set_center_freq(self.freq, 0)
@@ -348,6 +351,45 @@ def _install_channel_accessors():
 
 
 _install_channel_accessors()
+
+
+# -- diagnostica del dispositivo -------------------------------------------
+
+
+def _no_device_message(device_args: str, exc: Exception) -> str:
+    """Messaggio leggibile quando gr-osmosdr non apre il dispositivo.
+
+    ``osmosdr.source()`` lancia sempre lo stesso RuntimeError generico
+    ("No devices specified via device arguments") sia col dispositivo assente
+    sia con un ``rtl_tcp`` irraggiungibile: la traceback non dice niente
+    all'utente. Qui la si traduce in cosa manca e cosa fare.
+    """
+    args = device_args.strip()
+    if "rtl_tcp=" in args:
+        endpoint = ""
+        for token in args.split():
+            if token.startswith("rtl_tcp="):
+                endpoint = token[len("rtl_tcp="):]
+        return (
+            f"[osmotetra_rx] Nessun ricevitore rtl_tcp su {endpoint or '(indirizzo mancante)'}.\n"
+            f"  Il server rtl_tcp non risponde. Sulla macchina a cui è collegata\n"
+            f"  la chiavetta avvia:  rtl_tcp -a 0.0.0.0 -p 1234\n"
+            f"  e lascia quella finestra aperta; verifica host e porta.\n"
+            f"  (dettaglio gr-osmosdr: {exc})"
+        )
+    where = args or "auto (nessun dispositivo indicato)"
+    return (
+        f"[osmotetra_rx] Nessun dispositivo SDR trovato (richiesto: {where}).\n"
+        f"  • Se la chiavetta è collegata direttamente: controlla con\n"
+        f"      rtl_test -t\n"
+        f"    'usb_claim_interface error -6' = driver DVB-T ancora caricato\n"
+        f"    (scollega/ricollega o riavvia); se serve sudo, fai logout/login\n"
+        f"    per il gruppo plugdev.\n"
+        f"  • Se sei in una macchina virtuale, l'USB potrebbe non essere\n"
+        f"    inoltrato: lascia la chiavetta al sistema ospitante ed esponila\n"
+        f"    con rtl_tcp (device 'rtl_tcp=INDIRIZZO:1234'). Vedi il README.\n"
+        f"  (dettaglio gr-osmosdr: {exc})"
+    )
 
 
 # -- riga di comando -------------------------------------------------------

@@ -290,22 +290,64 @@ class Pipeline:
                 self.stop()
                 return [f"Avvio di «{stage.label}» fallito: {exc}"]
 
-            if stage.key == "rx" and self.cfg.telive.xmlrpc_enabled:
+            if stage.key == "rx":
                 # telive interroga il ricevitore una sola volta, al proprio
                 # avvio: se non risponde ancora, resta senza controllo RX per
-                # tutta la sessione. Meglio aspettarlo qui.
-                if self.wait_for_receiver(timeout=RECEIVER_WAIT_SECONDS):
-                    self._log(stage, "server XMLRPC pronto")
+                # tutta la sessione. Meglio aspettarlo qui — e accorgersi
+                # subito se invece il ricevitore è morto all'avvio (SDR
+                # assente), senza sprecare il timeout e aprire telive a vuoto.
+                if self.cfg.telive.xmlrpc_enabled:
+                    if self.wait_for_receiver(RECEIVER_WAIT_SECONDS, stage):
+                        self._log(stage, "server XMLRPC pronto")
+                    elif not self._stage_alive(stage):
+                        return self._abort_receiver_dead(stage)
+                    else:
+                        self._log(stage, (
+                            f"il server XMLRPC non risponde dopo "
+                            f"{RECEIVER_WAIT_SECONDS:.0f}s: telive partirà senza "
+                            f"controllo del ricevitore"
+                        ))
                 else:
-                    self._log(stage, (
-                        f"il server XMLRPC non risponde dopo "
-                        f"{RECEIVER_WAIT_SECONDS:.0f}s: telive partirà senza "
-                        f"controllo del ricevitore"
-                    ))
+                    # Senza XMLRPC non c'è nulla da attendere, ma un breve
+                    # respiro fa emergere un crash immediato del ricevitore.
+                    time.sleep(1.5)
+                    if not self._stage_alive(stage):
+                        return self._abort_receiver_dead(stage)
             else:
                 time.sleep(0.3)
 
         return []
+
+    @staticmethod
+    def _stage_alive(stage: Stage) -> bool:
+        return stage.process is not None and stage.process.poll() is None
+
+    def _abort_receiver_dead(self, stage: Stage) -> list[str]:
+        """Ferma la catena quando il ricevitore muore all'avvio.
+
+        Restituisce un problema con le ultime righe di log dello stadio rx,
+        dove il flowgraph ha già scritto la diagnosi (SDR assente, rtl_tcp
+        irraggiungibile, ...). Evita di avviare telive e i decoder a vuoto.
+        """
+        self._set_state(stage, StageState.FAILED)
+        self.stop()
+
+        # Mostra il blocco diagnostico dal punto in cui il flowgraph l'ha
+        # scritto ("[osmotetra_rx] ..."), non solo le ultime righe che ne
+        # taglierebbero l'inizio.
+        log = list(stage.log)
+        start = next((i for i, ln in enumerate(log)
+                      if "osmotetra_rx]" in ln and "avviato" not in ln), None)
+        if start is not None:
+            block = [ln for ln in log[start:] if ln.strip()
+                     and "terminato" not in ln]
+        else:
+            block = [ln for ln in log[-8:] if ln.strip()]
+        detail = ("\n    " + "\n    ".join(block)) if block else ""
+        return [
+            "Il ricevitore SDR si è chiuso subito dopo l'avvio "
+            "(nessuna radio raggiungibile?)." + detail
+        ]
 
     def _spawn(self, stage: Stage) -> None:
         self._set_state(stage, StageState.STARTING)
@@ -462,11 +504,20 @@ class Pipeline:
     def receiver(self) -> ReceiverControl:
         return ReceiverControl(self.cfg.base_port, self.cfg.udp_host)
 
-    def wait_for_receiver(self, timeout: float = 10.0) -> bool:
-        """Attende che il server XMLRPC del flowgraph risponda."""
+    def wait_for_receiver(self, timeout: float = 10.0,
+                          stage: "Stage | None" = None) -> bool:
+        """Attende che il server XMLRPC del flowgraph risponda.
+
+        Se ``stage`` è fornito e il suo processo termina durante l'attesa, si
+        smette subito: non ha senso sondare per tutto il timeout un ricevitore
+        che è già morto (es. SDR assente).
+        """
         control = self.receiver()
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            if stage is not None and stage.process is not None \
+                    and stage.process.poll() is not None:
+                return False
             if control.is_alive():
                 return True
             time.sleep(0.4)

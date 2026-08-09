@@ -6,11 +6,10 @@
 #  che oggi fornisce insieme gnuradio, gr-osmosdr e libosmocore funzionanti su
 #  Apple Silicon (su Homebrew gr-osmosdr è rotto).
 #
-#  Prerequisiti (una tantum):
-#    1) Xcode Command Line Tools:   xcode-select --install
-#    2) MacPorts:                   https://www.macports.org/install.php
-#       (scegli il pacchetto per la tua versione di macOS, poi riapri il
-#        Terminale così 'port' entra nel PATH)
+#  Prerequisito (una tantum): Xcode Command Line Tools.
+#      xcode-select --install
+#  MacPorts, se manca, lo installa in automatico questo script (dai sorgenti
+#  ufficiali; serve solo la toolchain di Xcode). Non devi scaricare nulla a mano.
 #
 #  Uso:   ./install_macos.sh        (come utente normale; chiede la password
 #                                    sudo per 'port' e per creare le cartelle)
@@ -60,6 +59,39 @@ die()  { echo "ERRORE: $*" >&2; exit 1; }
 sedi() { sed -i '' "$@"; }
 md5of() { md5 -q "$1"; }
 
+# MacPorts assente: lo installiamo dai sorgenti ufficiali (bastano gli Xcode
+# CLT, già presenti). Evita il download manuale del .pkg.
+install_macports_from_source() {
+  step "MacPorts non trovato: lo installo dai sorgenti (una tantum)"
+  command -v curl >/dev/null 2>&1 || die "manca 'curl' per scaricare MacPorts."
+  local tmp url srcdir
+  tmp="$(mktemp -d)"
+  info "Cerco l'ultima versione di macports-base su GitHub…"
+  url="$(curl -fsSL https://api.github.com/repos/macports/macports-base/releases/latest \
+        | awk -F'"' '/browser_download_url/ && /\.tar\.bz2"/{print $4; exit}')"
+  [ -n "$url" ] || die "non trovo il tarball di MacPorts (rete/API GitHub). Installa MacPorts a mano da https://www.macports.org/install.php e rilancia."
+  info "Scarico:  $url"
+  curl -fSL "$url" -o "$tmp/macports.tar.bz2" || die "download di MacPorts fallito."
+  tar xjf "$tmp/macports.tar.bz2" -C "$tmp" || die "estrazione di MacPorts fallita."
+  srcdir="$(find "$tmp" -maxdepth 1 -type d -name 'MacPorts-*' | head -1)"
+  [ -n "$srcdir" ] || die "sorgenti MacPorts non trovati dopo l'estrazione."
+  info "Compilo e installo MacPorts (chiede la password sudo)…"
+  # qui si usa il 'make' di sistema (GNU make dei CLT): gmake non esiste ancora.
+  ( cd "$srcdir" && ./configure && make && sudo make install ) \
+    || die "build/installazione di MacPorts fallita."
+  rm -rf "$tmp"
+  export PATH="/opt/local/bin:/opt/local/sbin:$PATH"
+  hash -r 2>/dev/null || true
+  command -v port >/dev/null 2>&1 || die "MacPorts installato ma 'port' non è nel PATH."
+  info "Sincronizzo l'albero dei port (primo selfupdate: può volerci qualche minuto)…"
+  sudo port -v selfupdate || die "port selfupdate fallito: riprova con una rete stabile."
+  # rendi 'port' disponibile anche nelle sessioni future
+  if ! grep -q '/opt/local/bin' "$HOME/.zshrc" 2>/dev/null; then
+    printf '\n# MacPorts\nexport PATH="/opt/local/bin:/opt/local/sbin:$PATH"\n' >> "$HOME/.zshrc"
+  fi
+  info "MacPorts pronto."
+}
+
 # ---------------------------------------------------------------------------
 # 0) Prerequisiti
 # ---------------------------------------------------------------------------
@@ -70,13 +102,7 @@ info "macOS $(sw_vers -productVersion 2>/dev/null)  ·  arch $(uname -m)  ·  co
 xcode-select -p >/dev/null 2>&1 || die "mancano gli Xcode Command Line Tools. Esegui:  xcode-select --install"
 
 if ! command -v port >/dev/null 2>&1; then
-  cat >&2 <<EOF
-ERRORE: MacPorts non trovato.
-Installalo (una tantum) da:  https://www.macports.org/install.php
-Scegli il pacchetto .pkg per la TUA versione di macOS, installalo, poi
-RIAPRI il Terminale (così 'port' entra nel PATH) e rilancia questo script.
-EOF
-  exit 1
+  install_macports_from_source
 fi
 
 # ---------------------------------------------------------------------------

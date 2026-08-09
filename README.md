@@ -139,11 +139,9 @@ Su un Mac con Apple Silicon puoi usare OsmoTetra **direttamente**, senza
 macchina virtuale: colleghi la chiavetta RTL-SDR al Mac e su macOS non c'è il
 problema del driver DVB-T di Linux.
 
-Prerequisiti (una tantum):
-
-1. **Xcode Command Line Tools:** `xcode-select --install`
-2. **MacPorts:** installa il pacchetto per la tua versione di macOS da
-   <https://www.macports.org/install.php>, poi riapri il Terminale.
+Prerequisito, una tantum: **Xcode Command Line Tools** —
+`xcode-select --install`. Se manca **MacPorts**, lo installa da solo lo script
+(dai sorgenti ufficiali): non devi scaricare nulla a mano.
 
 Installazione e avvio:
 
@@ -312,11 +310,9 @@ On an Apple Silicon Mac you can run OsmoTetra **directly**, with no virtual
 machine: plug the RTL-SDR into the Mac — macOS has none of Linux's DVB-T driver
 problem.
 
-Prerequisites (one-time):
-
-1. **Xcode Command Line Tools:** `xcode-select --install`
-2. **MacPorts:** install the package for your macOS version from
-   <https://www.macports.org/install.php>, then reopen Terminal.
+One-time prerequisite: **Xcode Command Line Tools** —
+`xcode-select --install`. If **MacPorts** is missing, the script installs it
+for you (from the official sources): nothing to download by hand.
 
 Install and run:
 

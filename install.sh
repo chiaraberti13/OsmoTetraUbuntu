@@ -91,12 +91,14 @@ patch_telive_includes() {
 # per l'XMLRPC verso il flowgraph: senza, telive non compila. Se nanohttp non
 # c'è, applichiamo la patch che lo sostituisce con una POST via socket POSIX.
 maybe_patch_nanohttp() {
-  local probe tmp
+  local tmp
   tmp="$(mktemp -d)"
   cat > "$tmp/p.c" <<'EOF'
 #include <libxml/nanohttp.h>
 int main(void){ xmlNanoHTTPInit(); return 0; }
 EOF
+  # SC2046 volontario: xml2-config stampa più flag che DEVONO essere separati.
+  # shellcheck disable=SC2046
   if cc "$tmp/p.c" $(xml2-config --cflags --libs 2>/dev/null) -o "$tmp/p" >/dev/null 2>&1; then
     info "libxml2 con nanohttp: nessuna patch necessaria."
     rm -rf "$tmp"; return 0

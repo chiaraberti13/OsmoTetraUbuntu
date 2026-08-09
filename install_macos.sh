@@ -203,6 +203,8 @@ fi
 # nanohttp: la libxml2 di MacPorts potrebbe non averlo più → patch a socket.
 probe="$(mktemp -d)"
 printf '#include <libxml/nanohttp.h>\nint main(void){xmlNanoHTTPInit();return 0;}\n' > "$probe/p.c"
+# SC2046 volontario: xml2-config stampa più flag che DEVONO essere separati.
+# shellcheck disable=SC2046
 if cc "$probe/p.c" $(xml2-config --cflags --libs) -o "$probe/p" >/dev/null 2>&1; then
   info "libxml2 con nanohttp: nessuna patch."
 else

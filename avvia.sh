@@ -53,6 +53,11 @@ cleanup() {
   echo "[avvia] fermo la catena…"
   [ -n "$DEMOD_PID" ] && kill -TERM -- "-$DEMOD_PID" 2>/dev/null || true
   [ -n "$RX_PID" ]    && kill -TERM -- "-$RX_PID"    2>/dev/null || true
+  # rete di sicurezza: chiudi per nome quel che fosse sfuggito al kill di gruppo
+  pkill -f "$FLOWGRAPH" 2>/dev/null || true
+  pkill -x socat 2>/dev/null || true
+  pkill -f simdemod3_telive.py 2>/dev/null || true
+  pkill -x tetra-rx 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 

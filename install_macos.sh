@@ -2,9 +2,9 @@
 # ============================================================================
 #  install_macos.sh — installazione di OsmoTetra su macOS (Apple Silicon, M1…M4)
 # ============================================================================
-#  Variante NATIVA per macOS: niente macchina virtuale. Usa MacPorts, l'unico
-#  che oggi fornisce insieme gnuradio, gr-osmosdr e libosmocore funzionanti su
-#  Apple Silicon (su Homebrew gr-osmosdr è rotto).
+#  Variante NATIVA per macOS: niente macchina virtuale. Usa MacPorts per
+#  gnuradio e gr-osmosdr (su Homebrew gr-osmosdr è rotto) e compila libosmocore
+#  dai sorgenti (il port MacPorts è troppo vecchio per clang recente).
 #
 #  Prerequisito (una tantum): Xcode Command Line Tools.
 #      xcode-select --install
@@ -92,6 +92,38 @@ install_macports_from_source() {
   info "MacPorts pronto."
 }
 
+# libosmocore aggiornata, compilata dai sorgenti in un prefisso LOCALE (non
+# tocca /opt/local). Al decoder serve solo la libreria CORE, che su macOS
+# compila pulita; talloc/gnutls li ha già messi MacPorts. Il port 'osmocore'
+# di MacPorts è fermo alla 1.3.0 e non regge clang-19.
+OSMOCORE_PREFIX="$OSMOTETRA_HOME/osmocore"
+build_libosmocore() {
+  export PKG_CONFIG_PATH="$OSMOCORE_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+  if pkg-config --exists libosmocore 2>/dev/null; then
+    info "libosmocore già presente ($(pkg-config --modversion libosmocore))."
+    return 0
+  fi
+  step "Compilo libosmocore dai sorgenti (in $OSMOCORE_PREFIX)"
+  local src="$OSMOTETRA_HOME/src-libosmocore"
+  if [ -d "$src/.git" ]; then
+    git -C "$src" checkout -- . 2>/dev/null || true
+    git -C "$src" pull --ff-only || true
+  else
+    git clone --depth 1 https://github.com/osmocom/libosmocore.git "$src"
+  fi
+  (
+    cd "$src"
+    # su macOS i tool GNU libtool sono prefissati con 'g' (glibtoolize)
+    LIBTOOLIZE=glibtoolize autoreconf -fi
+    PKG_CONFIG_PATH="/opt/local/lib/pkgconfig" \
+    CFLAGS="-Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types" \
+      ./configure --prefix="$OSMOCORE_PREFIX" --disable-doc --disable-pcsc
+    "$GMAKE" -j"$JOBS"
+    "$GMAKE" install
+  ) || die "build di libosmocore fallita (vedi l'output qui sopra)."
+  info "libosmocore $(pkg-config --modversion libosmocore 2>/dev/null) installata."
+}
+
 # ---------------------------------------------------------------------------
 # 0) Prerequisiti
 # ---------------------------------------------------------------------------
@@ -110,17 +142,23 @@ fi
 # ---------------------------------------------------------------------------
 step "1) Dipendenze (MacPorts) — può richiedere parecchio la prima volta"
 sudo port -N selfupdate || info "selfupdate saltato (offline?)"
-# Dipendenze generiche.
+# Dipendenze generiche + gli strumenti per compilare libosmocore dai sorgenti
+# (autoconf/automake/libtool/talloc): il port 'osmocore' di MacPorts è vecchio
+# (1.3.0) e non compila con clang recente, quindi la libreria la costruiamo noi.
 sudo port -N install \
-  gnuradio osmocore rtl-sdr \
-  socat gmake pkgconfig ncurses libxml2 sox wget
+  gnuradio rtl-sdr \
+  socat gmake pkgconfig ncurses libxml2 sox wget \
+  autoconf automake libtool autoconf-archive talloc gnutls
 # gr-osmosdr SOLO con RTL-SDR, SENZA UHD/USRP: l'UHD dipende da 'tecla', che su
 # Apple Silicon non compila (e non ci serve). +rtlsdr abilita la chiavetta.
 sudo port -N install gr-osmosdr +rtlsdr -uhd
 info "Pacchetti MacPorts installati."
 
 [ -x "$GMAKE" ] || die "gmake non trovato dopo l'installazione MacPorts."
-pkg-config --exists libosmocore || die "pkg-config non trova libosmocore: MacPorts 'osmocore' non installato correttamente."
+
+# libosmocore dai sorgenti (il port MacPorts è troppo vecchio per clang-19).
+build_libosmocore
+pkg-config --exists libosmocore || die "libosmocore non trovata dopo la build dai sorgenti."
 
 # Flag di compatibilità del compilatore (clang): teniamo solo quelli accettati.
 detect_compat_cflags() {

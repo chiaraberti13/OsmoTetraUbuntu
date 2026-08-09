@@ -268,7 +268,10 @@ class Config:
         if self.sdr.source.startswith("file:"):
             path = self.sdr.source[len("file:"):]
             if not path:
-                errors.append("Sorgente 'file:' senza percorso.")
+                errors.append(
+                    "Sorgente 'file:' senza percorso: seleziona un file IQ, "
+                    "oppure imposta Sorgente = «Radio SDR» per usare la chiavetta."
+                )
             elif not Path(path).expanduser().is_file():
                 errors.append(f"File IQ non trovato: {path}")
         elif self.sdr.source not in ("osmosdr", "null"):

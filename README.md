@@ -191,22 +191,33 @@ For a first attempt on a known TETRA network:
 | Field | Suggested value |
 | --- | --- |
 | Device | leave empty (first device found), or `rtl=0` |
-| Centre frequency | the control channel frequency of your network |
+| Centre frequency | control channel **+ 300 kHz** (anti-DC offset, see below) |
 | Sample rate | 2.0 Ms/s |
 | Decimation | 32 |
 | Channel filter | 12.5 kHz |
-| RF gain | 38 dB |
-| Correction | your dongle's ppm error (often between 0 and 60) |
+| RF gain | 30–38 dB |
+| Correction | 0 for TCXO dongles, otherwise your ppm (often 0–60) |
+
+Then in the **Channels** tab set channel 1's offset to **−300 kHz**, so the
+channel lands back on its real frequency.
+
+> ℹ️ **Anti-DC offset.** The RTL-SDR has a fixed spike at the centre of its
+> spectrum (the R820T tuner's local-oscillator leakage). Putting the channel
+> right on it degrades reception, so tune the centre ~200–300 kHz away from the
+> channel and let the channel offset make up the difference. Example: to
+> receive a control channel at 390.500 MHz, set centre = 390.800 MHz and
+> channel 1 offset = −300 kHz. The simpler centre = channel / offset 0 also
+> works but sits on the spike — fine for a quick test.
 
 The greyed line under the fields shows what is left after decimation —
 62.5 kHz with these values — and warns you if it is not enough for the channel
 you asked for.
 
-**2. Leave the Channels tab alone for now**
+**2. Set channel 1 in the Channels tab**
 
-One channel, offset 0. The channel frequency then coincides with the centre
-frequency. Point it at the **control channel**: that is where nearly all the
-signalling is.
+One channel, offset **−300 kHz** (the anti-DC offset above), so its resulting
+frequency is your **control channel** — that is where nearly all the signalling
+is. If you took the simple centre = channel route instead, leave the offset at 0.
 
 **3. Press Avvia (Start)**
 
@@ -763,21 +774,32 @@ Per un primo tentativo su una rete TETRA nota:
 | Campo | Valore consigliato |
 | --- | --- |
 | Dispositivo | lascia vuoto (primo trovato), oppure `rtl=0` |
-| Frequenza centrale | la frequenza del canale di controllo della tua rete |
+| Frequenza centrale | canale di controllo **+ 300 kHz** (offset anti-DC, vedi sotto) |
 | Campionamento | 2,0 Ms/s |
 | Decimazione | 32 |
 | Filtro di canale | 12,5 kHz |
-| Guadagno RF | 38 dB |
-| Correzione | l'errore in ppm della tua chiavetta (spesso fra 0 e 60) |
+| Guadagno RF | 30-38 dB |
+| Correzione | 0 per chiavette con TCXO, altrimenti i tuoi ppm (spesso 0-60) |
+
+Poi nella scheda **Canali** imposta l'offset del canale 1 a **−300 kHz**, così
+il canale torna sulla sua frequenza reale.
+
+> ℹ️ **Offset anti-DC.** L'RTL-SDR ha un picco fisso al centro del suo spettro
+> (il leakage dell'oscillatore locale del tuner R820T). Mettere il canale
+> proprio lì peggiora la ricezione: conviene tenere la frequenza centrale
+> ~200-300 kHz accanto al canale e recuperare la differenza con l'offset del
+> canale. Esempio: per ricevere un controllo a 390.500 MHz, centro = 390.800
+> MHz e offset canale 1 = −300 kHz. La via più semplice centro = canale /
+> offset 0 funziona ma cade sul picco — va bene per una prova rapida.
 
 La riga grigia sotto i campi mostra cosa resta dopo la decimazione — 62,5 kHz
 con questi valori — e avvisa se non basta per il canale che hai chiesto.
 
-**2. Per ora lascia stare la scheda Canali**
+**2. Imposta il canale 1 nella scheda Canali**
 
-Un canale, offset 0. La frequenza del canale coincide così con quella
-centrale. Puntala sul **canale di controllo**: è lì che sta quasi tutta la
-segnalazione.
+Un canale, offset **−300 kHz** (l'offset anti-DC qui sopra), così la frequenza
+risultante è il tuo **canale di controllo** — dove sta quasi tutta la
+segnalazione. Se hai scelto la via semplice centro = canale, lascia l'offset a 0.
 
 **3. Premi Avvia**
 

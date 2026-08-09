@@ -107,16 +107,32 @@ Il manuale completo è `~/.local/share/osmotetra/src/telive-2/telive_doc.pdf`.
 Per una prima prova su una rete TETRA nota, con una RTL-SDR:
 
 ```
-Frequenza centrale   la frequenza del canale di controllo
+Frequenza centrale   canale di controllo + 300 kHz (offset anti-DC, vedi sotto)
 Campionamento        2,0 Ms/s
 Decimazione          32          → 62,5 kHz per canale
 Filtro di canale     12,5 kHz
-Guadagno RF          38 dB
-Correzione           quella della tua chiavetta (spesso fra 0 e 60 ppm)
-Canali               1, offset 0
+Guadagno RF          30-38 dB
+Correzione           0 (chiavette con TCXO), altrimenti la tua (spesso 0-60 ppm)
+Canali               1, offset -300 kHz  → riporta il canale sulla sua frequenza
 ```
 
-Con un solo canale centrato, l'offset resta a zero e la frequenza del canale
-coincide con quella centrale. Passando a più canali conviene invece spostare
-la frequenza centrale a metà del gruppo di canali da ricevere e usare gli
-offset — così tutti restano dentro la banda campionata.
+**Offset anti-DC.** Al centro dello spettro l'RTL-SDR ha un picco fisso (il
+leakage dell'oscillatore locale del tuner R820T). Se ci metti sopra il canale,
+il segnale è disturbato. Conviene quindi tenere la **frequenza centrale
+spostata di ~200-300 kHz** rispetto al canale, e recuperare la differenza con
+l'offset del canale.
+
+Esempio a un canale, per ricevere il controllo a **390.500 MHz**:
+
+```
+Frequenza centrale   390.800 MHz
+Canale 1 offset      -300 kHz     → frequenza risultante 390.500 MHz
+```
+
+L'alternativa più semplice — **frequenza centrale = canale, offset 0** —
+funziona, ma mette il canale proprio sul picco DC: usala solo per una prova
+rapida.
+
+Passando a più canali, si tiene la frequenza centrale a metà del gruppo da
+ricevere e si usano gli offset — così tutti restano dentro la banda campionata
+(il vincolo è `|offset| + filtro ≤ campionamento / 2`).

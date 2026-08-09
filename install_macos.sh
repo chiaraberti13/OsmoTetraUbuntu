@@ -151,6 +151,9 @@ sudo port -N install \
   autoconf automake libtool autoconf-archive talloc gnutls
 # gr-osmosdr SOLO con RTL-SDR, SENZA UHD/USRP: l'UHD dipende da 'tecla', che su
 # Apple Silicon non compila (e non ci serve). +rtlsdr abilita la chiavetta.
+# Un tentativo precedente può aver iniziato la build con +uhd: MacPorts allora
+# rifiuta le nuove varianti finché non si pulisce la build parziale.
+sudo port -N clean gr-osmosdr 2>/dev/null || true
 sudo port -N install gr-osmosdr +rtlsdr -uhd
 info "Pacchetti MacPorts installati."
 

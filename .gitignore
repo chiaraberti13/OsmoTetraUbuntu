@@ -5,7 +5,6 @@ __pycache__/
 venv/
 
 # Generati dall'installer / a runtime
-scripts/templates/*.out
 *.log
 *.kml
 *.cfile

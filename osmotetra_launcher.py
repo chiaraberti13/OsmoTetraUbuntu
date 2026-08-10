@@ -30,7 +30,7 @@ from pathlib import Path
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
-    QApplication, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
+    QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
     QVBoxLayout, QWidget,
 )
@@ -121,12 +121,16 @@ class Launcher(QWidget):
         self.device.setEditText("")
         self.device.lineEdit().setPlaceholderText("vuoto = prima chiavetta trovata")
 
+        self.show_spectrum = QCheckBox("Mostra la finestra dello spettro (grafici + controlli)")
+        self.show_spectrum.setChecked(True)
+
         form_box = QGroupBox("Sintonia")
         form = QFormLayout(form_box)
         form.addRow("Frequenza del canale:", self.freq)
         form.addRow("Guadagno RF:", self.gain)
         form.addRow("Correzione:", self.ppm)
         form.addRow("Dispositivo:", self.device)
+        form.addRow("", self.show_spectrum)
 
         self.start_btn = QPushButton("▶  Avvia")
         self.start_btn.clicked.connect(self.on_start)
@@ -160,7 +164,7 @@ class Launcher(QWidget):
     def _set_running(self, running: bool):
         self.start_btn.setEnabled(not running)
         self.stop_btn.setEnabled(running)
-        for w in (self.freq, self.gain, self.ppm, self.device):
+        for w in (self.freq, self.gain, self.ppm, self.device, self.show_spectrum):
             w.setEnabled(not running)
         if running:
             self.status.setText("In esecuzione — guarda la finestra di telive")
@@ -199,6 +203,8 @@ class Launcher(QWidget):
             "--ppm", str(self.ppm.value()),
             "--device-args", device_args,
         ]
+        if self.show_spectrum.isChecked():
+            fg_cmd.append("--gui")
         self._log(f"$ {' '.join(fg_cmd)}")
         try:
             fg = subprocess.Popen(

@@ -53,9 +53,10 @@ class OsmoTetraRX(gr.top_block):
 
     def __init__(self, *, channel_freq, samp_rate, first_decim, out_sample_rate,
                  options_low_pass, sdr_gain, sdr_ifgain, sdr_bbgain, ppm_corr,
-                 device_args, udp_dest_addr, first_port, source):
+                 device_args, udp_dest_addr, first_port, source, gui=False):
         gr.top_block.__init__(
-            self, "OsmoTetra RX 1ch (SQ5BPF headless)", catch_exceptions=True)
+            self, "OsmoTetra RX 1ch (SQ5BPF)", catch_exceptions=True)
+        self.gui = gui
 
         # -- variabili (stessi nomi e stessa convenzione di upstream) -----
         # Come nel flowgraph headless di SQ5BPF: ``freq`` è la frequenza di
@@ -120,7 +121,91 @@ class OsmoTetraRX(gr.top_block):
         self.connect((self.analog_agc3_xx_0, 0), (self.mmse_resampler_xx_0, 0))
         self.connect((self.mmse_resampler_xx_0, 0), (self.network_udp_sink_0, 0))
 
+        if self.gui:
+            self._build_gui_sinks(samp_rate, if_samp_rate)
+
         self._start_xmlrpc(first_port)
+
+    def _build_gui_sinks(self, samp_rate, if_samp_rate):
+        """Aggiunge i due analizzatori di spettro (spettro pieno + IF) come nel
+        flowgraph con GUI di SQ5BPF. I widget veri si creano in make_gui_window."""
+        from gnuradio import qtgui
+        from gnuradio.fft import window
+        import pmt
+
+        # spettro pieno, derivato dalla sorgente SDR: centrato sul baseband
+        self.freq_sink_full = qtgui.freq_sink_c(
+            1024, window.WIN_BLACKMAN_hARRIS, 0, samp_rate, "", 1, None)
+        self.freq_sink_full.set_update_time(0.10)
+        self.freq_sink_full.enable_autoscale(False)
+        self.freq_sink_full.enable_grid(False)
+        self.freq_sink_full.set_fft_average(0.2)
+        self.freq_sink_full.enable_control_panel(True)
+        # spettro IF, dopo il filtro di canale (largo ~62,5 kHz)
+        self.freq_sink_if = qtgui.freq_sink_c(
+            256, window.WIN_BLACKMAN_hARRIS, 0, if_samp_rate, "IF", 1, None)
+        self.freq_sink_if.set_update_time(0.01)
+        self.freq_sink_if.enable_autoscale(True)
+        self.freq_sink_if.enable_grid(True)
+        self.freq_sink_if.enable_control_panel(True)
+        # marcatore: porta il centro dello spettro pieno sul baseband dell'SDR
+        self.freq_marker = blocks.message_strobe(
+            pmt.cons(pmt.intern("freq"), pmt.from_float(self.freq)), 100)
+        self.msg_connect((self.freq_marker, 'strobe'), (self.freq_sink_full, 'freq'))
+        self.connect((self.osmosdr_source_0, 0), (self.freq_sink_full, 0))
+        self.connect((self.freq_xlating_fir_filter_xxx_0, 0), (self.freq_sink_if, 0))
+
+    def make_gui_window(self):
+        """Finestra con i due grafici e i controlli (freq, fine, ppm, gain).
+        Da chiamare dopo aver creato la QApplication."""
+        from PyQt5 import Qt, QtCore
+        import sip
+        from gnuradio.qtgui import Range, RangeWidget
+        from gnuradio import eng_notation
+
+        win = Qt.QWidget()
+        win.setWindowTitle("OsmoTetra — spettro e parametri")
+        grid = Qt.QGridLayout(win)
+
+        # campo Frequenza (del CANALE, non del baseband)
+        channel_hz = self.freq + self.xlate_offset1
+        bar = Qt.QToolBar(win)
+        bar.addWidget(Qt.QLabel("Frequenza canale: "))
+        self._freq_edit = Qt.QLineEdit(eng_notation.num_to_str(channel_hz))
+        bar.addWidget(self._freq_edit)
+        self._freq_edit.returnPressed.connect(self._on_freq_edit)
+        grid.addWidget(bar, 0, 0, 1, 2)
+
+        # Fine tune / ppm / gain (slider con contatore, come nel flowgraph SQ5BPF)
+        grid.addWidget(RangeWidget(
+            Range(-5e3, 5e3, 1, self.xlate_offset_fine1, 200),
+            self.set_xlate_offset_fine1, "Fine tune", "counter_slider",
+            float, QtCore.Qt.Horizontal), 0, 2, 1, 2)
+        grid.addWidget(RangeWidget(
+            Range(-100, 100, 0.5, self.ppm_corr, 200),
+            self.set_ppm_corr, "ppm", "counter_slider",
+            float, QtCore.Qt.Horizontal), 0, 4, 1, 2)
+        grid.addWidget(RangeWidget(
+            Range(0, 50, 1, self.sdr_gain, 200),
+            self.set_sdr_gain, "gain", "counter_slider",
+            float, QtCore.Qt.Horizontal), 0, 6, 1, 1)
+
+        # i due analizzatori di spettro
+        full_w = sip.wrapinstance(self.freq_sink_full.qwidget(), Qt.QWidget)
+        if_w = sip.wrapinstance(self.freq_sink_if.qwidget(), Qt.QWidget)
+        grid.addWidget(full_w, 1, 0, 1, 4)
+        grid.addWidget(if_w, 1, 4, 1, 4)
+        win.resize(1000, 600)
+        return win
+
+    def _on_freq_edit(self):
+        from gnuradio import eng_notation
+        try:
+            channel = eng_notation.str_to_num(str(self._freq_edit.text()))
+        except Exception:
+            return
+        # freq interna = baseband = canale - offset anti-DC
+        self.set_freq(channel - self.xlate_offset1)
 
     # -- sorgente ---------------------------------------------------------
 
@@ -186,6 +271,11 @@ class OsmoTetraRX(gr.top_block):
         self.freq = float(freq)
         if self._source_ctl is not None:
             self._source_ctl.set_center_freq(self.freq, 0)
+        # ricentra lo spettro pieno sul nuovo baseband, se la GUI è attiva
+        marker = getattr(self, "freq_marker", None)
+        if marker is not None:
+            import pmt
+            marker.set_msg(pmt.cons(pmt.intern("freq"), pmt.from_float(self.freq)))
 
     def get_samp_rate(self):
         return self.samp_rate
@@ -313,7 +403,8 @@ def eng_float(text):
 def build_parser():
     p = argparse.ArgumentParser(
         prog="osmotetra_rx.py",
-        description="Ricevitore TETRA 1 canale headless per telive (DSP di SQ5BPF).",
+        description="Ricevitore TETRA 1 canale per telive (DSP di SQ5BPF); "
+                    "headless, oppure con --gui mostra spettro e controlli.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--freq", type=eng_float, default=390.5e6,
                    help="frequenza del CANALE da ascoltare in Hz (es. 390.5M)")
@@ -336,25 +427,55 @@ def build_parser():
                    help="porta XMLRPC; i campioni escono su porta+1 in UDP")
     p.add_argument("--source", default="osmosdr", metavar="SPEC",
                    help="'osmosdr' (radio), 'null' o 'file:<percorso>' (prova senza radio)")
+    p.add_argument("--gui", action="store_true",
+                   help="mostra la finestra con lo spettro e i controlli (freq/ppm/gain)")
     return p
+
+
+def _build_tb(opts, gui):
+    return OsmoTetraRX(
+        channel_freq=opts.freq, samp_rate=opts.samp_rate, first_decim=opts.first_decim,
+        out_sample_rate=opts.out_rate, options_low_pass=opts.lowpass,
+        sdr_gain=opts.gain, sdr_ifgain=opts.if_gain, sdr_bbgain=opts.bb_gain,
+        ppm_corr=opts.ppm, device_args=opts.device_args, udp_dest_addr=opts.udp_host,
+        first_port=opts.port, source=opts.source, gui=gui)
+
+
+def _announce(opts):
+    print(
+        f"[osmotetra_rx] canale {opts.freq / 1e6:.4f} MHz "
+        f"(SDR a {(opts.freq - XLATE_OFFSET) / 1e6:.4f} MHz, offset anti-DC "
+        f"{XLATE_OFFSET / 1e3:.0f} kHz), {opts.samp_rate / 1e6:.3f} Ms/s, "
+        f"XMLRPC su 0.0.0.0:{opts.port}, UDP su {opts.udp_host}:{opts.port + 1}"
+        + ("  [finestra spettro attiva]" if opts.gui else ""),
+        flush=True)
 
 
 def main(argv=None):
     opts = build_parser().parse_args(argv)
 
-    tb = OsmoTetraRX(
-        channel_freq=opts.freq, samp_rate=opts.samp_rate, first_decim=opts.first_decim,
-        out_sample_rate=opts.out_rate, options_low_pass=opts.lowpass,
-        sdr_gain=opts.gain, sdr_ifgain=opts.if_gain, sdr_bbgain=opts.bb_gain,
-        ppm_corr=opts.ppm, device_args=opts.device_args, udp_dest_addr=opts.udp_host,
-        first_port=opts.port, source=opts.source)
+    # --- con finestra dello spettro: serve una QApplication ---------------
+    if opts.gui:
+        from PyQt5 import Qt
+        qapp = Qt.QApplication(sys.argv)
+        tb = _build_tb(opts, gui=True)      # i sink qtgui vogliono la QApplication già viva
+        win = tb.make_gui_window()
+        _announce(opts)
 
-    print(
-        f"[osmotetra_rx] canale {opts.freq / 1e6:.4f} MHz "
-        f"(SDR a {(opts.freq - XLATE_OFFSET) / 1e6:.4f} MHz, offset anti-DC "
-        f"{XLATE_OFFSET / 1e3:.0f} kHz), {opts.samp_rate / 1e6:.3f} Ms/s, "
-        f"XMLRPC su 0.0.0.0:{opts.port}, UDP su {opts.udp_host}:{opts.port + 1}",
-        flush=True)
+        def sig_handler(signum=None, frame=None):
+            tb.stop(); tb.wait(); Qt.QApplication.quit()
+
+        signal.signal(signal.SIGINT, sig_handler)
+        signal.signal(signal.SIGTERM, sig_handler)
+        tb.start()
+        win.show()
+        timer = Qt.QTimer(); timer.start(500); timer.timeout.connect(lambda: None)
+        qapp.exec_()
+        return 0
+
+    # --- headless ---------------------------------------------------------
+    tb = _build_tb(opts, gui=False)
+    _announce(opts)
 
     stopping = threading.Event()
 

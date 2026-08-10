@@ -61,10 +61,14 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# --- 1) flowgraph headless (in sottofondo) ----------------------------------
-echo "[avvia] flowgraph: canale ${FREQ_MHZ} MHz, guadagno ${GAIN} dB, dispositivo '${DEVICE_ARGS:-auto}'"
+# --- 1) flowgraph (in sottofondo) -------------------------------------------
+# Con un display attivo mostra anche la finestra dello spettro (--gui);
+# senza display (es. via SSH) resta headless. Disattivabile con OSMOTETRA_NOGUI=1.
+GUI_FLAG=""
+if [ -n "${DISPLAY:-}" ] && [ -z "${OSMOTETRA_NOGUI:-}" ]; then GUI_FLAG="--gui"; fi
+echo "[avvia] flowgraph: canale ${FREQ_MHZ} MHz, guadagno ${GAIN} dB, dispositivo '${DEVICE_ARGS:-auto}'${GUI_FLAG:+ (con spettro)}"
 setsid "$GR_PYTHON" "$FLOWGRAPH" \
-  --freq "$FREQ_HZ" --gain "$GAIN" --ppm "$PPM" --device-args "$DEVICE_ARGS" \
+  --freq "$FREQ_HZ" --gain "$GAIN" --ppm "$PPM" --device-args "$DEVICE_ARGS" $GUI_FLAG \
   >"$LOG_DIR/flowgraph.log" 2>&1 &
 RX_PID=$!
 

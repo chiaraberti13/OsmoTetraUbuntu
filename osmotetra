@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  osmotetra — comando unico di OsmoTetra
+# ============================================================================
+#  Apri il pannello, avvia tutta la catena, oppure apri solo la finestra che
+#  ti serve. Le tre finestre sono:
+#     1) il PANNELLO (dove imposti i parametri)
+#     2) la finestra dello SPETTRO (grafici + controlli)
+#     3) TELIVE (il monitor che decodifica)
+# ============================================================================
+set -euo pipefail
+
+HOME_DIR="${OSMOTETRA_HOME:-$HOME/telive2}"
+LAUNCHER="$HOME_DIR/osmotetra_launcher.py"
+AVVIA="$HOME_DIR/avvia.sh"
+PY="${OSMOTETRA_PYTHON:-python3}"
+
+usage() {
+  cat <<'EOF'
+OsmoTetra — comandi disponibili:
+
+  osmotetra                  apre il PANNELLO grafico (finestra 1) — consigliato
+  osmotetra avvia  [F] [D]   avvia TUTTO: ricevitore + spettro + telive
+  osmotetra monitor [F] [D]  avvia ricevitore + telive (SENZA spettro)
+  osmotetra spettro [F] [D]  apre SOLO la finestra dello spettro (per sintonizzare)
+  osmotetra chiavi           apre l'editor delle chiavi di decifratura
+  osmotetra stop             ferma tutto
+  osmotetra aiuto            mostra questo messaggio
+
+  F = frequenza del canale in MHz (es. 390.5)
+  D = dispositivo (es. rtl=0  oppure  rtl_tcp=192.168.64.1:1234)
+
+Esempi:
+  osmotetra                        # apri il pannello e premi Avvia
+  osmotetra avvia 390.5            # tutto, da terminale
+  osmotetra spettro 390.5          # guarda solo lo spettro
+  osmotetra chiavi                 # inserisci le chiavi senza toccare file di testo
+EOF
+}
+
+cmd="${1:-pannello}"
+[ "$#" -gt 0 ] && shift || true
+
+case "$cmd" in
+  pannello|gui|"")        exec "$PY" "$LAUNCHER" ;;
+  chiavi|keys|chiave)     exec "$PY" "$LAUNCHER" --keys ;;
+  avvia|start|tutto)      exec "$AVVIA" --tutto "$@" ;;
+  monitor|telive)         exec "$AVVIA" --monitor "$@" ;;
+  spettro|spectrum)       exec "$AVVIA" --spettro "$@" ;;
+  stop|ferma)
+      pkill -f "$HOME_DIR/osmotetra_rx.py" 2>/dev/null || true
+      pkill -x tetra-rx 2>/dev/null || true
+      pkill -x socat 2>/dev/null || true
+      pkill -f simdemod3_telive.py 2>/dev/null || true
+      pkill -x telive 2>/dev/null || true
+      echo "OsmoTetra fermato." ;;
+  aiuto|help|-h|--help)   usage ;;
+  *) echo "Comando sconosciuto: $cmd"; echo; usage; exit 1 ;;
+esac

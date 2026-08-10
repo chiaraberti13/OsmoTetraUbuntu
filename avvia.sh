@@ -1,24 +1,38 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  avvia.sh — avvia OsmoTetra da riga di comando (senza interfaccia grafica)
+#  avvia.sh — avvia OsmoTetra da riga di comando
 # ============================================================================
 #  Uso:
-#     ./avvia.sh [FREQUENZA_MHz] [DEVICE_ARGS]
-#  Esempi:
-#     ./avvia.sh 390.5                      # chiavetta USB automatica
-#     ./avvia.sh 390.5 rtl=0                # prima chiavetta
-#     ./avvia.sh 390.5 rtl_tcp=192.168.64.1:1234   # chiavetta via rete (VM)
+#     ./avvia.sh [MODALITA] [FREQUENZA_MHz] [DEVICE_ARGS]
 #
-#  Avvia in sottofondo il flowgraph e receiver1udp, poi apre telive in QUESTO
-#  terminale. Quando esci da telive (o premi Ctrl+C) ferma tutto.
+#  Modalità (opzionale, come primo argomento):
+#     --tutto     (default) ricevitore + finestra spettro + telive
+#     --monitor   ricevitore + telive, SENZA la finestra dello spettro
+#     --spettro   SOLO la finestra dello spettro (per guardare/sintonizzare)
+#
+#  Esempi:
+#     ./avvia.sh 390.5                       # tutto, chiavetta automatica
+#     ./avvia.sh --monitor 390.5             # solo telive
+#     ./avvia.sh --spettro 390.5             # solo lo spettro
+#     ./avvia.sh 390.5 rtl_tcp=192.168.64.1:1234   # chiavetta via rete (VM)
 #
 #  Variabili utili:
 #     OSMOTETRA_HOME   dove sono i sorgenti compilati (default: ~/telive2)
 #     OSMOTETRA_GAIN   guadagno RF in dB (default: 38)
 #     OSMOTETRA_PPM    correzione in ppm (default: 0)
+#     OSMOTETRA_NOGUI  se valorizzata, non apre mai la finestra dello spettro
 #     OSMOTETRA_PYTHON interprete con GNU Radio (default: python3)
 # ============================================================================
 set -euo pipefail
+
+MODE="tutto"
+case "${1:-}" in
+  --tutto)   MODE="tutto";   shift ;;
+  --monitor) MODE="monitor"; shift ;;
+  --spettro) MODE="spettro"; shift ;;
+  --*)       echo "[avvia] opzione sconosciuta: $1 (usa --tutto | --monitor | --spettro)"; exit 2 ;;
+esac
+MODE="${OSMOTETRA_MODE:-$MODE}"     # il dispatcher 'osmotetra' può forzarla da env
 
 FREQ_MHZ="${1:-390.5}"
 DEVICE_ARGS="${2:-}"
@@ -36,7 +50,9 @@ LOG_DIR="$HOME_DIR/logs"
 mkdir -p "$LOG_DIR"
 
 # --- controlli preliminari --------------------------------------------------
-for f in "$FLOWGRAPH" "$OSMO_SRC/receiver1udp" "$OSMO_SRC/tetra-rx" "$TELIVE_DIR/telive"; do
+need=("$FLOWGRAPH")
+[ "$MODE" != "spettro" ] && need+=("$OSMO_SRC/receiver1udp" "$OSMO_SRC/tetra-rx" "$TELIVE_DIR/telive")
+for f in "${need[@]}"; do
   if [ ! -e "$f" ]; then
     echo "[ERRORE] Manca: $f"
     echo "         Esegui prima l'installazione:  ./install.sh"
@@ -45,6 +61,28 @@ for f in "$FLOWGRAPH" "$OSMO_SRC/receiver1udp" "$OSMO_SRC/tetra-rx" "$TELIVE_DIR
 done
 
 FREQ_HZ="$(awk "BEGIN{printf \"%.0f\", $FREQ_MHZ*1000000}")"
+
+# ============================================================================
+#  Modalità SPETTRO: solo il flowgraph con la sua finestra, in primo piano.
+#  Nessun decoder, nessun telive: serve a guardare lo spettro e sintonizzare.
+# ============================================================================
+if [ "$MODE" = "spettro" ]; then
+  if [ -z "${DISPLAY:-}" ]; then
+    echo "[ERRORE] La modalità --spettro richiede un display grafico."; exit 1
+  fi
+  echo "[avvia] solo finestra spettro: canale ${FREQ_MHZ} MHz, dispositivo '${DEVICE_ARGS:-auto}'"
+  exec "$GR_PYTHON" "$FLOWGRAPH" \
+    --freq "$FREQ_HZ" --gain "$GAIN" --ppm "$PPM" --device-args "$DEVICE_ARGS" --gui
+fi
+
+# ============================================================================
+#  Modalità TUTTO / MONITOR: flowgraph + ricevitore in sottofondo, telive davanti
+# ============================================================================
+# La finestra dello spettro si apre in «tutto» (se c'è un display); in «monitor» no.
+GUI_FLAG=""
+if [ "$MODE" = "tutto" ] && [ -n "${DISPLAY:-}" ] && [ -z "${OSMOTETRA_NOGUI:-}" ]; then
+  GUI_FLAG="--gui"
+fi
 
 RX_PID=""
 DEMOD_PID=""
@@ -62,10 +100,6 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # --- 1) flowgraph (in sottofondo) -------------------------------------------
-# Con un display attivo mostra anche la finestra dello spettro (--gui);
-# senza display (es. via SSH) resta headless. Disattivabile con OSMOTETRA_NOGUI=1.
-GUI_FLAG=""
-if [ -n "${DISPLAY:-}" ] && [ -z "${OSMOTETRA_NOGUI:-}" ]; then GUI_FLAG="--gui"; fi
 echo "[avvia] flowgraph: canale ${FREQ_MHZ} MHz, guadagno ${GAIN} dB, dispositivo '${DEVICE_ARGS:-auto}'${GUI_FLAG:+ (con spettro)}"
 setsid "$GR_PYTHON" "$FLOWGRAPH" \
   --freq "$FREQ_HZ" --gain "$GAIN" --ppm "$PPM" --device-args "$DEVICE_ARGS" $GUI_FLAG \

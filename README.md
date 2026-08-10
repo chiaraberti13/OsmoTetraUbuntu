@@ -18,9 +18,7 @@
 OsmoTetra prende la catena di monitoraggio TETRA di **Jacek Lipkowski SQ5BPF**
 (`osmo-tetra-sq5bpf-2` + codec vocale ETSI + `telive-2`), la installa con tutte
 le dipendenze e **automatizza l'avvio dei tre stadi** che di solito si aprono a
-mano in tre terminali. Al posto della procedura manuale c'è una finestrella:
-imposti frequenza, guadagno e dispositivo, premi **Avvia** e partono da soli il
-ricevitore, la finestra dello spettro e `telive`.
+mano in tre terminali.
 
 > **Nota legale.** La decifratura vocale funziona **solo a chiave nota**: devi
 > fornire tu chiavi che già possiedi. Non rompe alcuna cifratura. Usa questo
@@ -34,7 +32,7 @@ ricevitore, la finestra dello spettro e `telive`.
 
 ### Cosa fa
 
-La catena provata di SQ5BPF, avviata automaticamente da un unico lanciatore:
+La catena provata di SQ5BPF, avviata automaticamente da un unico comando:
 
 ```
  RTL-SDR ─► flowgraph GNU Radio (osmotetra_rx.py)
@@ -47,19 +45,10 @@ La catena provata di SQ5BPF, avviata automaticamente da un unico lanciatore:
            telive  ◄── il monitor che guardi: reti, SSI, chiamate (ncurses)
 ```
 
-Quando premi **Avvia** vedi fino a **tre finestre**:
-
-1. **il lanciatore** — dove imposti i parametri e leggi i log;
-2. **la finestra dello spettro** (opzionale) — due analizzatori di spettro e i
-   controlli a caldo di frequenza, ppm e guadagno;
-3. **`telive`** — il monitor vero e proprio, in un terminale, dove compaiono
-   rete, colour code, canale di controllo, SSI e chiamate.
-
-Il flowgraph e `receiver1udp` girano **in sottofondo** (il loro output è nel
-riquadro dei log del lanciatore). La catena di segnale — filtro, AGC,
-ricampionatore, uscita UDP a 36 kS/s — è **identica** al flowgraph originale di
-SQ5BPF: cambia solo che frequenza, guadagno, ppm e dispositivo si passano da
-riga di comando, così il lanciatore può avviarlo da solo.
+Quando avvii vedi fino a **tre finestre**: il **pannello** (dove imposti i
+parametri), la **finestra dello spettro** (grafici + controlli a caldo) e
+**`telive`** (il monitor che decodifica). Puoi aprirle tutte insieme oppure una
+alla volta, come preferisci.
 
 ### Requisiti
 
@@ -77,8 +66,8 @@ cd OsmoTetraUbuntu
 
 Lancialo **da utente normale** (non con `sudo`): chiederà la password solo per
 `apt` e per creare `/tetra`. Installa le dipendenze, scarica e compila
-`osmo-tetra-sq5bpf-2`, il codec vocale ETSI e `telive-2`, e crea il lanciatore
-(comando `osmotetra` e voce «OsmoTetra» nel menu applicazioni).
+`osmo-tetra-sq5bpf-2`, il codec vocale ETSI e `telive-2`, e crea il comando
+`osmotetra` e la voce «OsmoTetra» nel menu applicazioni.
 
 L'installazione **non tocca la radio**: antenna e chiavetta servono solo quando
 usi l'app, non durante `./install.sh`.
@@ -86,33 +75,55 @@ usi l'app, non durante `./install.sh`.
 Al termine, **riapri il terminale** (o `source ~/.bashrc`) per avere il comando
 `osmotetra` nel PATH.
 
-### Uso
+### Primo avvio (guida passo passo)
 
-Apri l'app: cerca **«OsmoTetra»** nel menu applicazioni, oppure da terminale:
+1. **Collega** la chiavetta RTL-SDR al PC e avvita l'**antenna**.
+2. **Apri OsmoTetra**: cerca **«OsmoTetra»** nel menu applicazioni, oppure apri
+   un terminale e scrivi `osmotetra`.
+3. Nel **pannello** imposta:
+   - **Frequenza del canale** = la frequenza del canale di controllo TETRA che
+     vuoi ascoltare (es. `390.5` MHz). Scrivi solo la frequenza del canale:
+     l'app tiene l'SDR 500 kHz più in là (offset anti-DC) così il segnale non
+     cade sul picco disturbato della chiavetta.
+   - **Guadagno RF** = parti da `38` dB; se non ricevi, alzalo.
+   - **Dispositivo** = lascia «rilevamento automatico» se la chiavetta è
+     collegata direttamente.
+4. Premi **Avvia**. Si aprono la **finestra dello spettro** e **`telive`**.
+5. Guarda **`telive`**: quando in alto compaiono **`MCC`**, **`MNC`** e le
+   frequenze (es. `MCC: 222 MNC: 55 … Control:390.5000MHz`), stai ricevendo la
+   rete. Le chiamate compaiono nell'elenco e nella finestra dei messaggi.
+6. Per **fermare**: premi **Ferma** nel pannello, oppure `q` dentro `telive`.
 
-```bash
-osmotetra
-```
+Non ricevi nulla? Vai a **«Se qualcosa non va»** più in basso.
 
-Nel lanciatore:
+### Il comando `osmotetra`
 
-1. **Frequenza del canale** — la frequenza del canale di controllo TETRA (es.
-   `390.5` MHz). Scrivi la frequenza del canale e basta: l'app tiene l'SDR 500
-   kHz più in là (offset anti-DC), così il segnale non cade sul picco DC della
-   chiavetta.
-2. **Guadagno RF** — parti da `38` dB; alzalo se il segnale è debole.
-3. **Correzione (ppm)** — lasciala a `0` con le chiavette dotate di TCXO (come
-   la RTL-SDR Blog V3); altrimenti regolala (vedi più sotto).
-4. **Dispositivo** — «rilevamento automatico» per una chiavetta collegata
-   direttamente; `rtl_tcp=INDIRIZZO:1234` se la chiavetta è su un'altra macchina
-   (vedi «Chiavetta in una macchina virtuale»).
-5. **Mostra la finestra dello spettro** — spuntata di default; toglila se
-   vuoi avviare senza i grafici.
-6. Premi **Avvia**. Si aprono lo spettro e `telive`. Quando l'intestazione di
-   `telive` mostra `MCC`, `MNC` e le frequenze, sei agganciato.
+Tutto passa da un solo comando. Puoi avviare tutto insieme, oppure aprire solo
+la finestra che ti serve:
 
-Per fermare tutto: **Ferma** nel lanciatore, oppure `q` in `telive`, oppure
-chiudi il lanciatore.
+| Comando | Cosa fa |
+|---|---|
+| `osmotetra` | apre il **pannello** (finestra 1) — il modo consigliato |
+| `osmotetra avvia 390.5` | avvia **tutto**: ricevitore + spettro + telive |
+| `osmotetra spettro 390.5` | apre **solo la finestra dello spettro** (per sintonizzare) |
+| `osmotetra monitor 390.5` | avvia **solo telive** (senza la finestra dello spettro) |
+| `osmotetra chiavi` | apre l'**editor delle chiavi** di decifratura |
+| `osmotetra stop` | ferma tutto |
+| `osmotetra aiuto` | mostra l'elenco dei comandi |
+
+Dopo la frequenza puoi aggiungere il dispositivo, es.
+`osmotetra avvia 390.5 rtl=0` oppure `osmotetra avvia 390.5 rtl_tcp=192.168.64.1:1234`.
+
+### Le tre finestre
+
+- **Pannello** *(finestra 1)* — il pannello di controllo: imposti i parametri,
+  premi Avvia/Ferma e leggi i log. Lo apri con `osmotetra`.
+- **Finestra dello spettro** *(finestra 2)* — due grafici e i controlli a caldo.
+  Si apre insieme al resto se la casella «Mostra la finestra dello spettro» è
+  spuntata; da sola con `osmotetra spettro 390.5`; per non aprirla mai togli la
+  spunta oppure usa `osmotetra monitor …`.
+- **`telive`** *(finestra 3)* — il monitor vero e proprio, in un terminale. Si
+  apre con Avvia, oppure da solo (senza spettro) con `osmotetra monitor 390.5`.
 
 ### La finestra dello spettro
 
@@ -125,11 +136,40 @@ basso due grafici:
 | **Fine tune** | ritocco fine della sintonia, in kHz, a caldo |
 | **ppm** | correzione della frequenza a caldo |
 | **gain** | guadagno RF a caldo |
-| grafico **sinistro** | spettro completo della banda campionata (2 MHz): ci vedi il segnale TETRA e i canali vicini |
-| grafico **IF** (destro) | il singolo canale dopo il filtro (~62,5 kHz): utile per centrare bene la sintonia |
+| grafico **sinistro** | spettro completo della banda (2 MHz): ci vedi il segnale TETRA e i canali vicini |
+| grafico **IF** (destro) | il singolo canale dopo il filtro (~62,5 kHz): utile per centrare la sintonia |
 
 I controlli agiscono **a caldo**: muovi `gain`, `ppm` o `Fine tune` mentre
 guardi lo spettro e vedi subito l'effetto.
+
+### Le chiavi di decifratura (con l'interfaccia)
+
+Per decifrare le chiamate serve una **chiave che già possiedi**. Non devi più
+modificare a mano il file di testo: c'è un editor grafico.
+
+**Come aprirlo:** premi il pulsante **«🔑 Chiavi di decifratura…»** nel pannello,
+oppure da terminale `osmotetra chiavi`.
+
+**Come si usa:**
+
+1. In alto, sezione **Rete**, compila:
+   - **MCC** e **MNC** della rete (es. `0222` e `0055`);
+   - **Cifratura (ksg_type)**: scegli `TEA1`…`TEA7` (per la maggior parte delle
+     reti europee è **TEA1**);
+   - **Classe di sicurezza**: `2` (SCK) oppure `3` (CCK+DCK).
+2. In basso, tabella **Chiavi**, per ogni chiave premi **«+ Aggiungi chiave»** e
+   compila:
+   - **MCC / MNC**: lasciali vuoti per usare quelli della rete;
+   - **Tipo chiave**: di solito `1 — CCK/SCK`, oppure `16` per una chiave TEA1
+     accorciata a 32 bit;
+   - **Chiave**: la chiave in **esadecimale a 80 bit** (20 cifre). Per il tipo
+     `16` metti le 8 cifre e riempi con zeri fino a 20 (es. `12345678000000000000`).
+3. Premi **💾 Salva**. L'editor scrive il keyfile che usa il decoder.
+4. **Avvia (o riavvia)** la ricezione: adesso le chiamate cifrate con quelle
+   chiavi vengono decifrate.
+
+> Senza chiavi (o con la sola chiave d'esempio) sentirai **solo le chiamate in
+> chiaro**; quelle cifrate restano mute. È normale.
 
 ### I tasti di telive
 
@@ -145,9 +185,8 @@ L'interfaccia resta quella originale di `telive`. I più usati:
 | `q` | esci |
 
 **Correzione fine (ppm).** Premi `t` per la finestra delle frequenze: se il
-valore **AFC** è lontano da zero, ferma, ritocca la **Correzione (ppm)** nel
-lanciatore (o il campo `ppm` nella finestra dello spettro) e riavvia, finché
-l'AFC non è vicino a zero.
+valore **AFC** è lontano da zero, ritocca il campo **ppm** (nella finestra dello
+spettro o nel pannello) finché non si avvicina a zero.
 
 ### Chiavetta in una macchina virtuale
 
@@ -159,51 +198,22 @@ Soluzione: lasciala al **sistema ospitante** ed esponila via rete. Sull'host:
 rtl_tcp -a 0.0.0.0 -p 1234
 ```
 
-lascia quella finestra aperta e, nel lanciatore, imposta **Dispositivo** =
+lascia quella finestra aperta e, nel pannello, imposta **Dispositivo** =
 `rtl_tcp=INDIRIZZO_HOST:1234` (es. `rtl_tcp=192.168.64.1:1234`).
-
-### Decifratura a chiave nota
-
-`telive-2` può decifrare le chiamate **solo con chiavi che già possiedi**. La
-catena usa `tetra-rx -k sample_keyfile`: metti la tua chiave nel file
-`~/telive2/osmo-tetra-sq5bpf-2/src/sample_keyfile`. Il formato:
-
-```
-network mcc 0222 mnc 0055 ksg_type 1 security_class 2
-key mcc 0222 mnc 0055 addr 00000000 key_type 16 key_num 0 key <80 bit esadecimali>
-```
-
-Con la sola chiave di esempio sentirai **solo le chiamate in chiaro**; quelle
-cifrate restano mute finché non inserisci le chiavi reali che possiedi.
-
-### Uso da riga di comando
-
-Senza interfaccia grafica, direttamente da terminale:
-
-```bash
-~/telive2/avvia.sh 390.5                             # chiavetta automatica
-~/telive2/avvia.sh 390.5 rtl=0                        # prima chiavetta
-~/telive2/avvia.sh 390.5 rtl_tcp=192.168.64.1:1234   # chiavetta via rete
-```
-
-`avvia.sh` apre `telive` in questo terminale e tiene flowgraph e ricevitore in
-sottofondo. Se c'è un display attivo mostra anche la finestra dello spettro; via
-SSH resta headless. Per non aprirla mai: `OSMOTETRA_NOGUI=1 ~/telive2/avvia.sh 390.5`.
-Guadagno e ppm si passano con `OSMOTETRA_GAIN` e `OSMOTETRA_PPM`.
 
 ### Se qualcosa non va
 
 - **«Nessun dispositivo SDR trovato»** — la chiavetta non è vista. Controlla con
   `rtl_test -t`. `usb_claim_interface error -6` = il driver DVB-T è ancora
-  caricato: scollega/ricollega la chiavetta o riavvia. In VM, usa `rtl_tcp`
-  (vedi sopra).
+  caricato: scollega/ricollega la chiavetta o riavvia. In VM, usa `rtl_tcp`.
 - **«rtl_tcp non risponde»** — sull'host il comando `rtl_tcp` non è in
   esecuzione, oppure il firewall blocca la porta 1234.
 - **telive si apre ma l'intestazione resta a zero** — sei sulla frequenza
   sbagliata o il segnale è troppo debole. Verifica la frequenza del canale di
-  controllo e alza il guadagno. Guarda lo spettro: il segnale TETRA deve essere
-  ben visibile nel grafico IF. Premi `t` in telive: se la finestra delle
-  frequenze è vuota, non arriva segnale decodificabile.
+  controllo e alza il guadagno. Guarda lo spettro (`osmotetra spettro 390.5`):
+  il segnale TETRA deve essere ben visibile nel grafico IF.
+- **Le chiamate cifrate restano mute** — normale senza le chiavi giuste: aprile
+  con `osmotetra chiavi` e inserisci le tue.
 - **La build di telive fallisce su nanohttp** — succede solo su libxml2 ≥ 2.14
   (Ubuntu 25.10); l'installer applica da solo la patch che lo risolve.
 
@@ -222,7 +232,7 @@ Tutti i log sono in `~/telive2/logs/`.
 
 ### What it does
 
-The proven SQ5BPF chain, started automatically from a single launcher:
+The proven SQ5BPF chain, started automatically from a single command:
 
 ```
  RTL-SDR ─► GNU Radio flowgraph (osmotetra_rx.py)
@@ -235,19 +245,10 @@ The proven SQ5BPF chain, started automatically from a single launcher:
            telive  ◄── the monitor you watch: networks, SSIs, calls (ncurses)
 ```
 
-When you press **Start** you get up to **three windows**:
-
-1. **the launcher** — where you set the parameters and read the logs;
-2. **the spectrum window** (optional) — two spectrum analysers and live controls
-   for frequency, ppm and gain;
-3. **`telive`** — the actual monitor, in a terminal, showing network, colour
-   code, control channel, SSIs and calls.
-
-The flowgraph and `receiver1udp` run **in the background** (their output shows in
-the launcher's log pane). The signal chain — filter, AGC, resampler, UDP output
-at 36 kS/s — is **identical** to SQ5BPF's original flowgraph: the only change is
-that frequency, gain, ppm and device are passed on the command line, so the
-launcher can start it on its own.
+When you start it you get up to **three windows**: the **panel** (where you set
+the parameters), the **spectrum window** (plots + live controls) and **`telive`**
+(the monitor that decodes). You can open them all together or one at a time, as
+you prefer.
 
 ### Requirements
 
@@ -265,8 +266,8 @@ cd OsmoTetraUbuntu
 
 Run it **as a normal user** (not with `sudo`): it asks for your password only for
 `apt` and to create `/tetra`. It installs the dependencies, downloads and builds
-`osmo-tetra-sq5bpf-2`, the ETSI voice codec and `telive-2`, and sets up the
-launcher (the `osmotetra` command and an “OsmoTetra” entry in the app menu).
+`osmo-tetra-sq5bpf-2`, the ETSI voice codec and `telive-2`, and creates the
+`osmotetra` command and an “OsmoTetra” entry in the app menu.
 
 Installing **does not touch the radio**: the antenna and dongle are only needed
 when you use the app, not during `./install.sh`.
@@ -274,32 +275,54 @@ when you use the app, not during `./install.sh`.
 When it finishes, **reopen the terminal** (or `source ~/.bashrc`) so the
 `osmotetra` command is on your PATH.
 
-### Use
+### First run (step by step)
 
-Open the app: find **“OsmoTetra”** in the applications menu, or run:
+1. **Plug in** the RTL-SDR dongle and screw on the **antenna**.
+2. **Open OsmoTetra**: find **“OsmoTetra”** in the applications menu, or open a
+   terminal and type `osmotetra`.
+3. In the **panel** set:
+   - **Channel frequency** = the TETRA control-channel frequency you want to
+     listen to (e.g. `390.5` MHz). Just type the channel frequency: the app
+     keeps the SDR tuned 500 kHz away (anti-DC offset) so the signal never sits
+     on the dongle's noisy DC spike.
+   - **RF gain** = start at `38` dB; if you get nothing, raise it.
+   - **Device** = leave “automatic” if the dongle is directly connected.
+4. Press **Start**. The **spectrum window** and **`telive`** open.
+5. Look at **`telive`**: when the top shows **`MCC`**, **`MNC`** and the
+   frequencies (e.g. `MCC: 222 MNC: 55 … Control:390.5000MHz`), you are
+   receiving the network. Calls appear in the list and in the message window.
+6. To **stop**: press **Stop** in the panel, or `q` inside `telive`.
 
-```bash
-osmotetra
-```
+Nothing received? See **“Troubleshooting”** below.
 
-In the launcher:
+### The `osmotetra` command
 
-1. **Channel frequency** — the TETRA control-channel frequency (e.g. `390.5`
-   MHz). Just type the channel frequency: the app keeps the SDR tuned 500 kHz
-   away (anti-DC offset) so the signal never sits on the dongle's DC spike.
-2. **RF gain** — start at `38` dB; raise it if the signal is weak.
-3. **Correction (ppm)** — leave it at `0` with TCXO dongles (like the RTL-SDR
-   Blog V3); otherwise adjust it (see below).
-4. **Device** — “automatic” for a directly connected dongle;
-   `rtl_tcp=ADDRESS:1234` if the dongle is on another machine (see “Dongle in a
-   virtual machine”).
-5. **Show the spectrum window** — ticked by default; untick it to start without
-   the plots.
-6. Press **Start**. The spectrum and `telive` open. When `telive`'s header shows
-   `MCC`, `MNC` and the frequencies, you are locked on.
+Everything goes through one command. You can start it all together, or open just
+the window you need:
 
-To stop everything: **Stop** in the launcher, or `q` in `telive`, or close the
-launcher.
+| Command | What it does |
+|---|---|
+| `osmotetra` | opens the **panel** (window 1) — recommended |
+| `osmotetra avvia 390.5` | starts **everything**: receiver + spectrum + telive |
+| `osmotetra spettro 390.5` | opens **only the spectrum window** (to tune) |
+| `osmotetra monitor 390.5` | starts **only telive** (without the spectrum window) |
+| `osmotetra chiavi` | opens the **key editor** for decryption |
+| `osmotetra stop` | stops everything |
+| `osmotetra aiuto` | shows the list of commands |
+
+After the frequency you can add the device, e.g.
+`osmotetra avvia 390.5 rtl=0` or `osmotetra avvia 390.5 rtl_tcp=192.168.64.1:1234`.
+
+### The three windows
+
+- **Panel** *(window 1)* — the control panel: set the parameters, press
+  Start/Stop and read the logs. Open it with `osmotetra`.
+- **Spectrum window** *(window 2)* — two plots and live controls. It opens with
+  everything else if “Show the spectrum window” is ticked; on its own with
+  `osmotetra spettro 390.5`; to never open it, untick the box or use
+  `osmotetra monitor …`.
+- **`telive`** *(window 3)* — the actual monitor, in a terminal. Opens with
+  Start, or on its own (no spectrum) with `osmotetra monitor 390.5`.
 
 ### The spectrum window
 
@@ -318,6 +341,35 @@ below:
 The controls act **live**: move `gain`, `ppm` or `Fine tune` while watching the
 spectrum and you see the effect immediately.
 
+### Decryption keys (with the editor)
+
+To decrypt calls you need a **key you already own**. You no longer edit the text
+file by hand: there is a graphical editor.
+
+**How to open it:** press the **“🔑 Chiavi di decifratura…”** button in the panel,
+or from a terminal `osmotetra chiavi`.
+
+**How to use it:**
+
+1. At the top, **Rete** (Network) section, fill in:
+   - the network's **MCC** and **MNC** (e.g. `0222` and `0055`);
+   - **Cifratura (ksg_type)**: choose `TEA1`…`TEA7` (most European networks use
+     **TEA1**);
+   - **Classe di sicurezza** (security class): `2` (SCK) or `3` (CCK+DCK).
+2. At the bottom, **Chiavi** (Keys) table, for each key press **“+ Aggiungi
+   chiave”** and fill in:
+   - **MCC / MNC**: leave empty to use the network's ones;
+   - **Tipo chiave** (key type): usually `1 — CCK/SCK`, or `16` for a 32-bit
+     shortened TEA1 key;
+   - **Chiave** (key): the key in **80-bit hex** (20 digits). For type `16` enter
+     the 8 digits and pad with zeros up to 20 (e.g. `12345678000000000000`).
+3. Press **💾 Salva** (Save). The editor writes the keyfile the decoder uses.
+4. **Start (or restart)** reception: calls encrypted with those keys are now
+   decrypted.
+
+> Without keys (or with only the sample key) you will hear **clear calls only**;
+> encrypted ones stay silent. That is expected.
+
 ### telive keys
 
 The interface is `telive`'s original one. The most used keys:
@@ -332,9 +384,8 @@ The interface is `telive`'s original one. The most used keys:
 | `q` | quit |
 
 **Fine correction (ppm).** Press `t` for the frequency window: if the **AFC**
-value is far from zero, stop, adjust the **Correction (ppm)** in the launcher (or
-the `ppm` field in the spectrum window) and start again, until the AFC is near
-zero.
+value is far from zero, adjust the **ppm** field (in the spectrum window or the
+panel) until it is near zero.
 
 ### Dongle in a virtual machine
 
@@ -346,50 +397,22 @@ keep it on the **host** and expose it over the network. On the host:
 rtl_tcp -a 0.0.0.0 -p 1234
 ```
 
-leave that window open and, in the launcher, set **Device** =
+leave that window open and, in the panel, set **Device** =
 `rtl_tcp=HOST_ADDRESS:1234` (e.g. `rtl_tcp=192.168.64.1:1234`).
-
-### Known-key decryption
-
-`telive-2` can decrypt calls **only with keys you already own**. The chain uses
-`tetra-rx -k sample_keyfile`: put your key in
-`~/telive2/osmo-tetra-sq5bpf-2/src/sample_keyfile`. Format:
-
-```
-network mcc 0222 mnc 0055 ksg_type 1 security_class 2
-key mcc 0222 mnc 0055 addr 00000000 key_type 16 key_num 0 key <80-bit hex>
-```
-
-With the sample key alone you will only hear **clear calls**; encrypted ones stay
-silent until you provide the real keys you legitimately own.
-
-### Command-line use
-
-Without the GUI, straight from a terminal:
-
-```bash
-~/telive2/avvia.sh 390.5                             # automatic dongle
-~/telive2/avvia.sh 390.5 rtl=0                        # first dongle
-~/telive2/avvia.sh 390.5 rtl_tcp=192.168.64.1:1234   # dongle over the network
-```
-
-`avvia.sh` opens `telive` in this terminal and keeps the flowgraph and receiver
-in the background. If a display is available it also shows the spectrum window;
-over SSH it stays headless. To never open it: `OSMOTETRA_NOGUI=1 ~/telive2/avvia.sh 390.5`.
-Gain and ppm are passed with `OSMOTETRA_GAIN` and `OSMOTETRA_PPM`.
 
 ### Troubleshooting
 
 - **“No SDR device found”** — the dongle isn't seen. Check with `rtl_test -t`.
   `usb_claim_interface error -6` = the DVB-T driver is still loaded: replug the
-  dongle or reboot. In a VM, use `rtl_tcp` (see above).
+  dongle or reboot. In a VM, use `rtl_tcp`.
 - **“rtl_tcp not responding”** — `rtl_tcp` isn't running on the host, or a
   firewall blocks port 1234.
 - **telive opens but the header stays at zero** — wrong frequency or the signal
   is too weak. Check the control-channel frequency and raise the gain. Look at
-  the spectrum: the TETRA signal should be clearly visible in the IF plot. Press
-  `t` in telive: if the frequency window is empty, no decodable signal is
-  arriving.
+  the spectrum (`osmotetra spettro 390.5`): the TETRA signal should be clearly
+  visible in the IF plot.
+- **Encrypted calls stay silent** — normal without the right keys: open them with
+  `osmotetra chiavi` and enter yours.
 - **telive build fails on nanohttp** — only on libxml2 ≥ 2.14 (Ubuntu 25.10); the
   installer applies the fix automatically.
 

@@ -229,12 +229,15 @@ step "7) Lanciatore grafico e voce di menu"
 install -m 0755 "$HERE/osmotetra_rx.py"       "$OSMOTETRA_HOME/osmotetra_rx.py"
 install -m 0755 "$HERE/osmotetra_launcher.py" "$OSMOTETRA_HOME/osmotetra_launcher.py"
 install -m 0755 "$HERE/avvia.sh"              "$OSMOTETRA_HOME/avvia.sh"
+install -m 0755 "$HERE/osmotetra"             "$OSMOTETRA_HOME/osmotetra"
 
+# comando 'osmotetra': un wrapper che imposta OSMOTETRA_HOME ed esegue il
+# dispatcher (pannello / avvia / spettro / monitor / chiavi / stop).
 BIN="$HOME/.local/bin"; mkdir -p "$BIN"
 cat > "$BIN/osmotetra" <<EOF
 #!/usr/bin/env bash
 export OSMOTETRA_HOME="$OSMOTETRA_HOME"
-exec python3 "$OSMOTETRA_HOME/osmotetra_launcher.py" "\$@"
+exec "$OSMOTETRA_HOME/osmotetra" "\$@"
 EOF
 chmod +x "$BIN/osmotetra"
 
@@ -263,10 +266,13 @@ cat <<EOF
 Tutto è in:  $OSMOTETRA_HOME
    osmo-tetra-sq5bpf-2/   telive-2/   logs/   + lanciatore
 
-COME USARLO
-   • Grafico:  cerca «OsmoTetra» nel menu, oppure esegui:  osmotetra
-       imposti frequenza + guadagno + dispositivo, premi Avvia → si apre telive.
-   • Riga di comando:  $OSMOTETRA_HOME/avvia.sh 390.5
+COME USARLO — un solo comando, 'osmotetra':
+   osmotetra                apre il PANNELLO (menu «OsmoTetra» o questo comando)
+   osmotetra avvia 390.5    avvia tutto da terminale (spettro + telive)
+   osmotetra spettro 390.5  apre solo la finestra dello spettro
+   osmotetra monitor 390.5  avvia solo telive (senza spettro)
+   osmotetra chiavi         inserisci le chiavi di decifratura (interfaccia)
+   osmotetra stop           ferma tutto        osmotetra aiuto   la guida
 
 Se 'osmotetra' non viene trovato subito, riapri il terminale
 (oppure:  source ~/.bashrc) — serve per avere ~/.local/bin nel PATH.

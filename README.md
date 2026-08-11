@@ -89,10 +89,13 @@ Al termine, **riapri il terminale** (o `source ~/.bashrc`) per avere il comando
    - **Sorgente SDR** = lascia **«Chiavetta locale (USB)»** se la chiavetta è
      collegata direttamente al PC.
 4. Premi **Avvia**. Si aprono la **finestra dello spettro** e **`telive`**.
-5. Guarda **`telive`**: quando in alto compaiono **`MCC`**, **`MNC`** e le
-   frequenze (es. `MCC: 222 MNC: 55 … Control:390.5000MHz`), stai ricevendo la
-   rete. Le chiamate compaiono nell'elenco e nella finestra dei messaggi.
-6. Per **fermare**: premi **Ferma** nel pannello, oppure `q` dentro `telive`.
+5. Guarda il riquadro **Stato** nel pannello: in pochi secondi le righe passano
+   da `·` a **✓**. Quando **«Rete rilevata»** mostra `MCC 222 · MNC 55 …`, stai
+   ricevendo la rete.
+6. Guarda **`telive`**: in alto compaiono **`MCC`**, **`MNC`** e le frequenze
+   (es. `MCC: 222 MNC: 55 … Control:390.5000MHz`). Le chiamate compaiono
+   nell'elenco e nella finestra dei messaggi.
+7. Per **fermare**: premi **Ferma** nel pannello, oppure `q` dentro `telive`.
 
 > **Base o Avanzata?** In alto c'è il selettore **Modalità**. In **Base** vedi
 > solo l'essenziale (frequenza, guadagno, sorgente SDR). In **Avanzata**
@@ -147,6 +150,38 @@ basso due grafici:
 I controlli agiscono **a caldo**: muovi `gain`, `ppm` o `Fine tune` mentre
 guardi lo spettro e vedi subito l'effetto.
 
+### Il pannello Stato (e i log)
+
+Nel pannello, sotto i pulsanti, c'è il riquadro **Stato**: sei righe che dicono
+a colpo d'occhio **a che punto è la catena** e, se qualcosa non va, **cosa
+manca**. Passa il mouse su una riga per la spiegazione estesa.
+
+| Riga | ✓ vuol dire | ! vuol dire |
+|---|---|---|
+| **Ricevitore SDR** | la radio è aperta e il flowgraph gira | — |
+| **Segnale in arrivo** | il decoder riceve campioni | frequenza sbagliata, guadagno troppo basso o antenna scollegata |
+| **Sincronizzazione TETRA** | agganciato al canale di controllo | il canale non è di controllo, o il segnale è troppo debole |
+| **Rete rilevata** | `MCC · MNC · CC · LA · ↓ frequenza` letti dall'aria | nessuna rete letta finora |
+| **Traffico cifrato** | traffico **in chiaro** | traffico **cifrato** (vedi la nota qui sotto) |
+| **Chiavi configurate** | quante chiavi hai nel keyfile e per quale rete | — |
+
+`·` grigio = informazione non ancora disponibile (o catena ferma).
+
+> **Attenzione a cosa dice davvero la radio.** Via etere TETRA segnala **se** il
+> traffico è cifrato, **non quale algoritmo** usa. Perciò la riga «Traffico
+> cifrato» dice solo *sì/no*: l'algoritmo (`TEA1`…`TEA7`) è quello che **scegli
+> tu** nell'editor delle chiavi, in base a quello che sai della tua rete.
+
+**Rete rilevata → editor delle chiavi.** Quando la rete è stata letta, il
+pulsante **«↧ Usa rete rilevata»** dentro l'editor delle chiavi si accende e
+compila MCC e MNC al posto tuo, già completati a 4 cifre.
+
+**Log a due livelli.** Il riquadro **Log** mostra di suo solo i messaggi che
+servono a te (avvio, arresto, errori). Spunta **«Log tecnico (mostra tutto)»**
+per vedere anche l'output grezzo di flowgraph e ricevitore: è quello da copiare
+quando chiedi aiuto. Puoi accendere e spegnere la spunta quando vuoi, senza
+perdere nulla di quello che è già passato.
+
 ### Le chiavi di decifratura (con l'interfaccia)
 
 Per decifrare le chiamate serve una **chiave che già possiedi**. Non devi più
@@ -159,7 +194,8 @@ oppure da terminale `osmotetra chiavi`.
 
 1. In alto, sezione **Rete**, compila:
    - **MCC** e **MNC** della rete (es. `222` e `55`): l'editor li completa da solo
-     a 4 cifre (`222` → `0222`);
+     a 4 cifre (`222` → `0222`). Se la ricezione ha già agganciato la rete, premi
+     **«↧ Usa rete rilevata»** e li compila lui con quelli letti dall'aria;
    - **Algoritmo (ksg_type)**: scegli `TEA1`…`TEA7`. **Seleziona l'algoritmo
      previsto dalla tua rete o dal tuo banco di prova — non sceglierlo in base al
      Paese.** (Via etere TETRA segnala *se* il traffico è cifrato, non *quale*
@@ -223,10 +259,14 @@ lascia quella finestra aperta e, nel pannello, imposta **Sorgente SDR** =
   caricato: scollega/ricollega la chiavetta o riavvia. In VM, usa `rtl_tcp`.
 - **«rtl_tcp non risponde»** — sull'host il comando `rtl_tcp` non è in
   esecuzione, oppure il firewall blocca la porta 1234.
-- **telive si apre ma l'intestazione resta a zero** — sei sulla frequenza
-  sbagliata o il segnale è troppo debole. Verifica la frequenza del canale di
-  controllo e alza il guadagno. Guarda lo spettro (`osmotetra spettro 390.5`):
-  il segnale TETRA deve essere ben visibile nel grafico IF.
+- **telive si apre ma l'intestazione resta a zero** — guarda prima il riquadro
+  **Stato** nel pannello: ti dice se manca il **segnale** (frequenza sbagliata,
+  guadagno troppo basso, antenna scollegata) o solo la **sincronizzazione**
+  (quel canale non è di controllo). Poi guarda lo spettro
+  (`osmotetra spettro 390.5`): il segnale TETRA deve essere ben visibile nel
+  grafico IF.
+- **Devi chiedere aiuto?** Spunta **«Log tecnico (mostra tutto)»** nel pannello e
+  copia quello che compare: contiene i messaggi grezzi di flowgraph e ricevitore.
 - **Le chiamate cifrate restano mute** — normale senza le chiavi giuste: aprile
   con `osmotetra chiavi` e inserisci le tue.
 - **La build di telive fallisce su nanohttp** — succede solo su libxml2 ≥ 2.14
@@ -304,10 +344,13 @@ When it finishes, **reopen the terminal** (or `source ~/.bashrc`) so the
    - **Sorgente SDR** = leave **“Chiavetta locale (USB)”** if the dongle is
      plugged straight into the PC.
 4. Press **Start**. The **spectrum window** and **`telive`** open.
-5. Look at **`telive`**: when the top shows **`MCC`**, **`MNC`** and the
-   frequencies (e.g. `MCC: 222 MNC: 55 … Control:390.5000MHz`), you are
-   receiving the network. Calls appear in the list and in the message window.
-6. To **stop**: press **Stop** in the panel, or `q` inside `telive`.
+5. Look at the **Stato** (Status) box in the panel: within seconds the rows go
+   from `·` to **✓**. When **“Rete rilevata”** (network detected) shows
+   `MCC 222 · MNC 55 …`, you are receiving the network.
+6. Look at **`telive`**: the top shows **`MCC`**, **`MNC`** and the frequencies
+   (e.g. `MCC: 222 MNC: 55 … Control:390.5000MHz`). Calls appear in the list and
+   in the message window.
+7. To **stop**: press **Stop** in the panel, or `q` inside `telive`.
 
 > **Base or Advanced?** At the top there is a **Modalità** (mode) selector. In
 > **Base** you see only the essentials (frequency, gain, SDR source). In
@@ -362,6 +405,38 @@ below:
 The controls act **live**: move `gain`, `ppm` or `Fine tune` while watching the
 spectrum and you see the effect immediately.
 
+### The Status box (and the logs)
+
+In the panel, below the buttons, sits the **Stato** (Status) box: six rows that
+tell you at a glance **how far the chain got** and, when something is wrong,
+**what is missing**. Hover a row for the long explanation.
+
+| Row | ✓ means | ! means |
+|---|---|---|
+| **Ricevitore SDR** (SDR receiver) | the radio is open and the flowgraph runs | — |
+| **Segnale in arrivo** (incoming signal) | the decoder is getting samples | wrong frequency, gain too low or antenna unplugged |
+| **Sincronizzazione TETRA** (TETRA sync) | locked onto the control channel | not a control channel, or the signal is too weak |
+| **Rete rilevata** (network detected) | `MCC · MNC · CC · LA · ↓ frequency` read off the air | no network read so far |
+| **Traffico cifrato** (encrypted traffic) | traffic is **in the clear** | traffic is **encrypted** (see the note below) |
+| **Chiavi configurate** (configured keys) | how many keys the keyfile holds, and for which network | — |
+
+A grey `·` means the information is not available yet (or the chain is stopped).
+
+> **Mind what the radio actually tells you.** Over the air TETRA signals
+> **whether** traffic is encrypted, **not which algorithm** it uses. So the
+> “Traffico cifrato” row only says *yes/no*: the algorithm (`TEA1`…`TEA7`) is the
+> one **you** pick in the key editor, from what you know about your network.
+
+**Detected network → key editor.** Once a network has been read, the
+**“↧ Usa rete rilevata”** (use detected network) button inside the key editor
+lights up and fills MCC and MNC for you, already padded to 4 digits.
+
+**Two-level logs.** The **Log** box shows only the messages meant for you by
+default (start, stop, errors). Tick **“Log tecnico (mostra tutto)”** (technical
+log) to also see the raw output of the flowgraph and the receiver: that is what
+to copy when asking for help. You can tick and untick it at any time without
+losing anything that already scrolled by.
+
 ### Decryption keys (with the editor)
 
 To decrypt calls you need a **key you already own**. You no longer edit the text
@@ -374,7 +449,8 @@ or from a terminal `osmotetra chiavi`.
 
 1. At the top, **Rete** (Network) section, fill in:
    - the network's **MCC** and **MNC** (e.g. `222` and `55`): the editor pads them
-     to 4 digits by itself (`222` → `0222`);
+     to 4 digits by itself (`222` → `0222`). If reception already locked onto the
+     network, press **“↧ Usa rete rilevata”** and it fills them in from the air;
    - **Algoritmo (ksg_type)**: choose `TEA1`…`TEA7`. **Pick the algorithm your
      network or test setup uses — do not choose it by country.** (Over the air
      TETRA signals *whether* traffic is encrypted, not *which* algorithm: that
@@ -437,10 +513,14 @@ remota (rete / VM)”**, then type the **host IP** (e.g. `192.168.64.1`) and the
   dongle or reboot. In a VM, use `rtl_tcp`.
 - **“rtl_tcp not responding”** — `rtl_tcp` isn't running on the host, or a
   firewall blocks port 1234.
-- **telive opens but the header stays at zero** — wrong frequency or the signal
-  is too weak. Check the control-channel frequency and raise the gain. Look at
-  the spectrum (`osmotetra spettro 390.5`): the TETRA signal should be clearly
-  visible in the IF plot.
+- **telive opens but the header stays at zero** — look at the **Stato** box in
+  the panel first: it tells you whether the **signal** is missing (wrong
+  frequency, gain too low, antenna unplugged) or only the **sync** (that channel
+  is not a control channel). Then look at the spectrum
+  (`osmotetra spettro 390.5`): the TETRA signal should be clearly visible in the
+  IF plot.
+- **Need to ask for help?** Tick **“Log tecnico (mostra tutto)”** in the panel and
+  copy what appears: it holds the raw flowgraph and receiver messages.
 - **Encrypted calls stay silent** — normal without the right keys: open them with
   `osmotetra chiavi` and enter yours.
 - **telive build fails on nanohttp** — only on libxml2 ≥ 2.14 (Ubuntu 25.10); the

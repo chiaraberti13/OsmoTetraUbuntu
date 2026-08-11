@@ -25,6 +25,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
@@ -59,6 +60,156 @@ SECURITY_CLASSES = [("2 — SCK", 2), ("3 — CCK+DCK", 3)]
 KEY_TYPES = [("1 — CCK/SCK", 1), ("2 — DCK", 2), ("4 — MGCK", 4),
              ("8 — GCK", 8), ("16 — TEA1 32-bit (riempi a 80)", 16)]
 
+#: porta su cui il tap riceve dal decoder, prima di inoltrare a telive (7379).
+TAP_PORT = 7380
+
+
+def _lead_int(tail, base):
+    """strtol "leggero": legge il numero iniziale di ``tail`` nella base data."""
+    digits = "0123456789abcdefABCDEF" if base == 16 else "0123456789"
+    j = 0
+    while j < len(tail) and tail[j] in digits:
+        j += 1
+    if j == 0:
+        return None
+    try:
+        return int(tail[:j], base)
+    except ValueError:
+        return None
+
+
+def _field(text, ident, base=None):
+    """Come getptr/getptrint di telive: trova ``ident`` e legge cosa segue."""
+    i = text.find(ident)
+    if i < 0:
+        return None
+    tail = text[i + len(ident):]
+    if base is None:
+        return tail.split(None, 1)[0] if tail.split() else ""
+    return _lead_int(tail, base)
+
+
+def _kf_tokens(line):
+    """«network mcc 0222 mnc 0055 …» → {'mcc': '0222', 'mnc': '0055', …}"""
+    parts = line.split()
+    return {parts[i]: parts[i + 1] for i in range(1, len(parts) - 1, 2)}
+
+
+def parse_keyfile(path):
+    """Legge il keyfile e restituisce (riga «network», elenco righe «key»).
+    Un file mancante o illeggibile non è un errore: si torna vuoti."""
+    net, keys = {}, []
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return net, keys
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("network ") and not net:
+            net = _kf_tokens(line)
+        elif line.startswith("key "):
+            keys.append(_kf_tokens(line))
+    return net, keys
+
+
+class StatusTap(QObject):
+    """Si mette fra il decoder e telive: riceve i messaggi TETMON su TAP_PORT,
+    li **inoltra tali e quali** a telive (7379) e ne estrae lo stato (MCC/MNC,
+    sincronizzazione, cifratura). Se qualcosa nella lettura va storto, i byte
+    inoltrati restano identici: la decodifica di telive non si può rompere."""
+
+    TELIVE_PORT = TELIVE_UDP_PORT
+
+    def __init__(self):
+        super().__init__()
+        self._sock = None
+        self._out = None
+        self._thread = None
+        self._running = False
+        self._lock = threading.Lock()
+        self._st = self._empty()
+
+    @staticmethod
+    def _empty():
+        return {"signal_ts": 0.0, "sync_ts": 0.0, "mcc": None, "mnc": None,
+                "ccode": None, "la": None, "control": None, "crypt": 0,
+                "enc_ts": 0.0}
+
+    def start(self) -> bool:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", TAP_PORT))
+            s.settimeout(0.5)
+        except OSError:
+            return False
+        self._sock = s
+        self._out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        with self._lock:
+            self._st = self._empty()
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self):
+        self._running = False
+        for s in (self._sock, self._out):
+            try:
+                s.close()
+            except Exception:
+                pass
+        self._sock = self._out = None
+
+    def snapshot(self):
+        with self._lock:
+            return dict(self._st)
+
+    def _run(self):
+        while self._running:
+            try:
+                data, _ = self._sock.recvfrom(65535)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            # 1) inoltra SUBITO a telive, byte per byte (mai deve fallire prima)
+            try:
+                self._out.sendto(data, ("127.0.0.1", self.TELIVE_PORT))
+            except OSError:
+                pass
+            # 2) poi, in modo difensivo, estrai lo stato
+            try:
+                self._parse(data.decode("latin1"))
+            except Exception:
+                pass
+
+    def _parse(self, text):
+        func = _field(text, "FUNC:")
+        if not func:
+            return
+        now = time.time()
+        with self._lock:
+            if func.startswith(("AFCVAL", "BURST")):
+                self._st["signal_ts"] = now
+            elif func.startswith("NETINFO"):
+                self._st["sync_ts"] = now
+                self._st["signal_ts"] = now
+                self._st["mcc"] = _field(text, "MCC:", 16)
+                self._st["mnc"] = _field(text, "MNC:", 16)
+                self._st["ccode"] = _field(text, "CCODE:", 16)
+                self._st["la"] = _field(text, "LA:", 10)
+                dlf = _field(text, "DLF:", 10)
+                self._st["control"] = dlf / 1e6 if dlf else None
+                crypt = _field(text, "CRYPT:", 10) or 0
+                self._st["crypt"] = crypt
+                if crypt >= 2:
+                    self._st["enc_ts"] = now
+            elif func.startswith(("GET_KSG_KEY", "ENCINFO", "CRYPTO_GET_KEY")):
+                self._st["enc_ts"] = now
+
 #: Dispositivi noti a gr-osmosdr; (etichetta, stringa device-args).
 DEVICE_PRESETS = [
     ("Chiavetta USB (rilevamento automatico)", ""),
@@ -89,9 +240,11 @@ class KeyEditor(QDialog):
     """Editor grafico del keyfile di decifratura: compili i campi e lui scrive
     il file che usa il decoder, senza doverlo modificare a mano."""
 
-    def __init__(self, keyfile: Path = KEYFILE, parent=None):
+    def __init__(self, keyfile: Path = KEYFILE, parent=None, detected=None):
         super().__init__(parent)
         self.keyfile = Path(keyfile)
+        #: (mcc, mnc) letti dall'aria mentre la ricezione girava, se disponibili.
+        self.detected = detected
         self.setWindowTitle("OsmoTetra — chiavi di decifratura")
         self._build_ui()
         self.load()
@@ -124,6 +277,23 @@ class KeyEditor(QDialog):
         net.addRow("MNC:", self.mnc)
         net.addRow("Algoritmo (ksg_type):", self.ksg)
         net.addRow("Classe di sicurezza:", self.sec)
+
+        # «Usa rete rilevata»: compila MCC/MNC con quelli letti dall'aria.
+        self.use_detected = QPushButton()
+        self.use_detected.clicked.connect(self._fill_detected)
+        if self.detected and self.detected[0] is not None:
+            d_mcc, d_mnc = self.detected
+            self.use_detected.setText(f"↧  Usa rete rilevata  (MCC {d_mcc} / MNC {d_mnc})")
+            self.use_detected.setToolTip(
+                "Copia qui MCC e MNC letti dal segnale, completati a 4 cifre.")
+        else:
+            self.use_detected.setText("↧  Usa rete rilevata")
+            self.use_detected.setEnabled(False)
+            self.use_detected.setToolTip(
+                "Disponibile dopo che la ricezione ha agganciato una rete: "
+                "avvia OsmoTetra, attendi «Rete rilevata» nel pannello Stato, "
+                "poi riapri questa finestra.")
+        net.addRow("", self.use_detected)
         net.addRow("", self._muted("MCC/MNC vengono completati a 4 cifre (222 → 0222)."))
 
         # --- Chiavi ---
@@ -297,6 +467,13 @@ class KeyEditor(QDialog):
         for c in self.ADV_COLS:
             self.table.setColumnHidden(c, not on)
 
+    def _fill_detected(self):
+        if not self.detected or self.detected[0] is None:
+            return
+        d_mcc, d_mnc = self.detected
+        self.mcc.setText(self._pad(str(d_mcc)))
+        self.mnc.setText(self._pad(str(d_mnc)))
+
     def _apply_key_echo(self):
         mode = QLineEdit.Normal if self.show_keys.isChecked() else QLineEdit.Password
         for r in range(self.table.rowCount()):
@@ -326,25 +503,8 @@ class KeyEditor(QDialog):
         combo.setCurrentIndex(idx if idx >= 0 else 0)
 
     @staticmethod
-    def _tokens(line):
-        parts = line.split()
-        return {parts[i]: parts[i + 1] for i in range(1, len(parts) - 1, 2)}
-
-    def _parse(self, path):
-        net, keys = {}, []
-        try:
-            text = Path(path).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return net, keys
-        for raw in text.splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("network ") and not net:
-                net = self._tokens(line)
-            elif line.startswith("key "):
-                keys.append(self._tokens(line))
-        return net, keys
+    def _parse(path):
+        return parse_keyfile(path)
 
 
 class Launcher(QWidget):
@@ -354,10 +514,16 @@ class Launcher(QWidget):
         self._procs: list[subprocess.Popen] = []
         self._telive_proc: subprocess.Popen | None = None
         self._telive_seen = False
+        self.tap: StatusTap | None = None
+        self._log_lines: list[tuple[bool, str]] = []   # (importante, testo)
         self._emitter = Emitter()
         self._emitter.line.connect(self._append_log)
         self._build_ui()
         self._set_running(False)
+        # il pannello Stato si aggiorna sempre, anche a catena ferma
+        self._status_timer = QTimer(self)
+        self._status_timer.timeout.connect(self._refresh_status)
+        self._status_timer.start(1000)
 
     # -- interfaccia ------------------------------------------------------
 
@@ -444,13 +610,22 @@ class Launcher(QWidget):
         self.status = QLabel("Fermo")
         self.status.setAlignment(Qt.AlignCenter)
 
+        status_box = self._build_status_box()
+
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(2000)
         mono = QFont("Monospace"); mono.setStyleHint(QFont.TypeWriter); mono.setPointSize(9)
         self.log.setFont(mono)
-        log_box = QGroupBox("Log (flowgraph e ricevitore)")
+        self.log_tech = QCheckBox("Log tecnico (mostra tutto)")
+        self.log_tech.setToolTip(
+            "Spento: solo i messaggi che servono a te.\n"
+            "Acceso: anche l'output grezzo di flowgraph e ricevitore, "
+            "utile da allegare quando chiedi aiuto.")
+        self.log_tech.toggled.connect(self._rerender_log)
+        log_box = QGroupBox("Log")
         log_layout = QVBoxLayout(log_box)
+        log_layout.addWidget(self.log_tech)
         log_layout.addWidget(self.log)
 
         layout = QVBoxLayout(self)
@@ -460,9 +635,130 @@ class Launcher(QWidget):
         layout.addWidget(form_box)
         layout.addLayout(btn_row)
         layout.addWidget(self.status)
+        layout.addWidget(status_box)
         layout.addWidget(log_box, 1)
-        self.resize(560, 580)
+        self.resize(600, 760)
         self._apply_mode()   # imposta la visibilità Base/Avanzata iniziale
+        self._refresh_status()
+
+    # -- pannello Stato ----------------------------------------------------
+
+    #: righe del pannello: (chiave interna, etichetta, spiegazione del «?»)
+    STATUS_ROWS = [
+        ("sdr",    "Ricevitore SDR",
+         "La radio è aperta e il flowgraph sta girando."),
+        ("signal", "Segnale in arrivo",
+         "Il decoder riceve campioni e misura lo scostamento di frequenza (AFC). "
+         "Se resta spento: frequenza sbagliata, guadagno troppo basso o antenna scollegata."),
+        ("sync",   "Sincronizzazione TETRA",
+         "Il decoder ha agganciato la struttura delle trame TETRA e legge i "
+         "messaggi di rete. È il segno che sei davvero su un canale di controllo."),
+        ("net",    "Rete rilevata",
+         "MCC (Paese), MNC (operatore), CC (codice colore) e LA (area) letti "
+         "dai messaggi di rete della cella."),
+        ("crypt",  "Traffico cifrato",
+         "Via etere TETRA segnala SE il traffico è cifrato, non QUALE algoritmo. "
+         "L'algoritmo (TEA1…TEA7) lo scegli tu nell'editor delle chiavi."),
+        ("key",    "Chiavi configurate",
+         "Quante chiavi contiene il keyfile e per quale rete: serve solo per "
+         "decifrare traffico che sei autorizzato a decifrare."),
+    ]
+
+    def _build_status_box(self):
+        box = QGroupBox("Stato")
+        grid = QFormLayout(box)
+        self._status_rows = {}
+        for key, label, tip in self.STATUS_ROWS:
+            mark = QLabel("·")
+            mark.setFixedWidth(16)
+            mark.setAlignment(Qt.AlignCenter)
+            text = QLabel("—")
+            text.setWordWrap(True)
+            row = QWidget()
+            h = QHBoxLayout(row); h.setContentsMargins(0, 0, 0, 0)
+            h.addWidget(mark); h.addWidget(text, 1)
+            name = QLabel(f"{label}:")
+            name.setToolTip(tip)
+            row.setToolTip(tip)
+            grid.addRow(name, row)
+            self._status_rows[key] = (mark, text)
+        return box
+
+    def _set_status_row(self, key, ok, text):
+        """ok: True → ✓ verde, False → ! ambra, None → · grigio (non pertinente)."""
+        mark, lbl = self._status_rows[key]
+        if ok is True:
+            mark.setText("✓"); mark.setStyleSheet("color:#2e9e5b; font-weight:bold;")
+        elif ok is False:
+            mark.setText("!"); mark.setStyleSheet("color:#c9781a; font-weight:bold;")
+        else:
+            mark.setText("·"); mark.setStyleSheet("color: palette(mid);")
+        lbl.setText(text)
+
+    def _refresh_status(self):
+        """Aggiorna il pannello Stato: una riga per ogni cosa che può mancare.
+        Gira anche a catena ferma, così le chiavi si vedono comunque."""
+        st = self.tap.snapshot() if self.tap else StatusTap._empty()
+        now = time.time()
+        fresh = lambda ts: ts and (now - ts) < 10       # noqa: E731 — leggibile così
+
+        running = bool(self._procs)
+        if not running:
+            self._set_status_row("sdr", None, "catena ferma")
+            self._set_status_row("signal", None, "—")
+            self._set_status_row("sync", None, "—")
+            self._set_status_row("net", None, "—")
+            self._set_status_row("crypt", None, "—")
+        else:
+            self._set_status_row("sdr", True, "radio aperta, flowgraph attivo")
+            if fresh(st["signal_ts"]):
+                self._set_status_row("signal", True, "il decoder riceve campioni")
+            else:
+                self._set_status_row("signal", False,
+                                     "nessun campione: controlla frequenza, guadagno e antenna")
+            if fresh(st["sync_ts"]):
+                self._set_status_row("sync", True, "agganciato al canale di controllo")
+            else:
+                self._set_status_row("sync", False,
+                                     "non agganciato: sei forse su un canale che non è di controllo")
+            if st["mcc"] is not None:
+                bits = [f"MCC {st['mcc']}", f"MNC {st['mnc']}"]
+                if st["ccode"] is not None:
+                    bits.append(f"CC {st['ccode']}")
+                if st["la"] is not None:
+                    bits.append(f"LA {st['la']}")
+                if st["control"]:
+                    bits.append(f"↓ {st['control']:.4f} MHz")
+                self._set_status_row("net", True, " · ".join(bits))
+            else:
+                self._set_status_row("net", False, "nessuna rete letta finora")
+            if fresh(st["enc_ts"]) or st["crypt"] >= 2:
+                self._set_status_row("crypt", False,
+                                     "sì — l'aria dice solo CHE è cifrato, non con quale algoritmo")
+            elif st["crypt"] == 1:
+                self._set_status_row("crypt", True, "no, traffico in chiaro")
+            else:
+                self._set_status_row("crypt", None, "non ancora determinato")
+
+        # le chiavi si leggono dal file: informazione valida anche a catena ferma
+        net, keys = parse_keyfile(KEYFILE)
+        if keys:
+            algo = dict((v, k) for k, v in KSG_TYPES).get(
+                int(net.get("ksg_type", 0) or 0), "?")
+            self._set_status_row(
+                "key", True,
+                f"{len(keys)} per MCC {net.get('mcc', '?')} / MNC {net.get('mnc', '?')} "
+                f"· algoritmo scelto: {algo}")
+        else:
+            self._set_status_row("key", None,
+                                 "nessuna — servono solo per decifrare, apri «Chiavi»")
+
+    def _detected_net(self):
+        """(mcc, mnc) letti dall'aria, o None: alimenta «Usa rete rilevata»."""
+        st = self.tap.snapshot() if self.tap else None
+        if st and st["mcc"] is not None:
+            return st["mcc"], st["mnc"]
+        return None
 
     # -- modalità Base / Avanzata -----------------------------------------
 
@@ -503,10 +799,42 @@ class Launcher(QWidget):
             self.status.setStyleSheet("color: white; background:#9aa0a6; padding:6px; border-radius:4px;")
 
     def open_keys(self):
-        KeyEditor(KEYFILE, self).exec_()
+        KeyEditor(KEYFILE, self, detected=self._detected_net()).exec_()
+        self._refresh_status()   # le chiavi possono essere cambiate
+
+    # -- log a due livelli -------------------------------------------------
+
+    #: parole che rendono «importante» anche una riga grezza di flowgraph/decoder
+    LOG_ALERTS = ("error", "errore", "traceback", "fail", "not found", "no devices",
+                  "permission denied", "cannot", "impossibile")
+
+    @classmethod
+    def _log_important(cls, text: str) -> bool:
+        """Vero per le righe che vale la pena mostrare anche a log semplice:
+        i nostri messaggi [launcher] e qualunque riga che segnali un guaio."""
+        if text.startswith("[launcher]"):
+            return True
+        low = text.lower()
+        return any(word in low for word in cls.LOG_ALERTS)
 
     def _append_log(self, text: str):
-        self.log.appendPlainText(text.rstrip("\n"))
+        text = text.rstrip("\n")
+        important = self._log_important(text)
+        self._log_lines.append((important, text))
+        if len(self._log_lines) > 4000:
+            del self._log_lines[:2000]
+        if important or self.log_tech.isChecked():
+            self.log.appendPlainText(text)
+
+    def _rerender_log(self, *_):
+        tech = self.log_tech.isChecked()
+        self.log.setPlainText("\n".join(
+            t for important, t in self._log_lines if tech or important))
+        self.log.verticalScrollBar().setValue(self.log.verticalScrollBar().maximum())
+
+    def _clear_log(self):
+        self._log_lines.clear()
+        self.log.clear()
 
     def _log(self, text: str):
         self._emitter.line.emit(text)
@@ -519,7 +847,7 @@ class Launcher(QWidget):
             QMessageBox.critical(self, "Manca qualcosa", problem)
             return
 
-        self.log.clear()
+        self._clear_log()
         self.status.setText("Avvio in corso…")
         self.status.setStyleSheet("color: white; background:#e8a33d; padding:6px; border-radius:4px;")
         QApplication.processEvents()
@@ -560,16 +888,33 @@ class Launcher(QWidget):
                 "Guarda le righe [rx] nel log qui sotto: dicono cosa manca e cosa fare.")
             return
 
-        # 3) receiver1udp (socat | simdemod3_telive.py | tetra-rx) in sottofondo
-        self._log(f"$ ./receiver1udp 1   (in {OSMO_SRC})")
+        # 3) tap dello stato (trasparente): riceve dal decoder e inoltra a telive.
+        #    Se non riesce a mettersi in ascolto, si prosegue senza diagnostica e
+        #    il decoder parla direttamente a telive (7379): la ricezione non cambia.
+        self.tap = StatusTap()
+        hack_port = TAP_PORT if self.tap.start() else TELIVE_UDP_PORT
+        if hack_port == TAP_PORT:
+            self._log(f"[launcher] stato/diagnostica attivi (tap {TAP_PORT} → telive {TELIVE_UDP_PORT})")
+        else:
+            self._log("[launcher] tap dello stato non disponibile: proseguo senza diagnostica")
+            self.tap = None
+
+        # 4) ricevitore: socat | simdemod3_telive.py | tetra-rx  (come receiver1udp,
+        #    ma con TETRA_HACK_PORT verso il tap quando è attivo)
+        self._log(f"$ socat | simdemod3_telive.py | tetra-rx   (TETRA_HACK_PORT={hack_port})")
+        # Il demodulatore gira con lo STESSO interprete del flowgraph: è quello
+        # che ha di sicuro i binding GNU Radio (vedi OSMOTETRA_PYTHON).
+        pipeline = ('export TETRA_HACK_PORT="$1" TETRA_HACK_IP=127.0.0.1 TETRA_HACK_RXID=1; '
+                    'socat -b 4096 UDP-RECV:42001 STDOUT | "$2" demod/simdemod3_telive.py | '
+                    './tetra-rx -r -k sample_keyfile -s /dev/stdin')
         try:
             rx = subprocess.Popen(
-                ["./receiver1udp", "1"], cwd=str(OSMO_SRC),
+                ["bash", "-c", pipeline, "_", str(hack_port), GR_PYTHON], cwd=str(OSMO_SRC),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, start_new_session=True)
         except OSError as exc:
             self.on_stop()
-            QMessageBox.critical(self, "Errore", f"Impossibile avviare receiver1udp:\n{exc}")
+            QMessageBox.critical(self, "Errore", f"Impossibile avviare il ricevitore:\n{exc}")
             return
         self._procs.append(rx)
         self._pump(rx, "demod")
@@ -654,6 +999,9 @@ class Launcher(QWidget):
         if hasattr(self, "_watch_timer"):
             self._watch_timer.stop()
         self._telive_seen = False
+        if self.tap is not None:
+            self.tap.stop()
+            self.tap = None
         for proc in (self._telive_proc, *reversed(self._procs)):
             _terminate(proc)
         # gnome-terminal apre telive in un processo server: il nostro handle è
@@ -663,6 +1011,7 @@ class Launcher(QWidget):
         self._telive_proc = None
         self._procs.clear()
         self._set_running(False)
+        self._refresh_status()
         self._log("[launcher] fermato.")
 
     def _check_alive(self):

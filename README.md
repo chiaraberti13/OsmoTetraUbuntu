@@ -89,8 +89,8 @@ Al termine, **riapri il terminale** (o `source ~/.bashrc`) per avere il comando
    - **Sorgente SDR** = lascia **«Chiavetta locale (USB)»** se la chiavetta è
      collegata direttamente al PC.
 4. Premi **Avvia**. Si aprono la **finestra dello spettro** e **`telive`**.
-5. Guarda il riquadro **Stato** nel pannello: in pochi secondi le righe passano
-   da `·` a **✓**. Quando **«Rete rilevata»** mostra `MCC 222 · MNC 55 …`, stai
+5. Apri la scheda **Stato** del pannello: in pochi secondi le righe passano da
+   `·` a **✓**. Quando **«Rete rilevata»** mostra `MCC 222 · MNC 55 …`, stai
    ricevendo la rete.
 6. Guarda **`telive`**: in alto compaiono **`MCC`**, **`MNC`** e le frequenze
    (es. `MCC: 222 MNC: 55 … Control:390.5000MHz`). Le chiamate compaiono
@@ -124,8 +124,9 @@ Dopo la frequenza puoi aggiungere il dispositivo, es.
 
 ### Le tre finestre
 
-- **Pannello** *(finestra 1)* — il pannello di controllo: imposti i parametri,
-  premi Avvia/Ferma e leggi i log. Lo apri con `osmotetra`.
+- **Pannello** *(finestra 1)* — il pannello di controllo, diviso in schede:
+  imposti i parametri, premi Avvia/Ferma, controlli lo stato e leggi i log. Lo
+  apri con `osmotetra`.
 - **Finestra dello spettro** *(finestra 2)* — due grafici e i controlli a caldo.
   Si apre insieme al resto se la casella «Mostra la finestra dello spettro» è
   spuntata; da sola con `osmotetra spettro 390.5`; per non aprirla mai togli la
@@ -150,9 +151,35 @@ basso due grafici:
 I controlli agiscono **a caldo**: muovi `gain`, `ppm` o `Fine tune` mentre
 guardi lo spettro e vedi subito l'effetto.
 
+### Le schede del pannello
+
+Frequenza, pulsanti **Avvia/Ferma** e la barra verde/grigia dello stato restano
+sempre in vista; il resto è diviso in schede, così ogni cosa sta al suo posto.
+
+| Scheda | Cosa ci trovi |
+|---|---|
+| **Ricezione** | frequenza, guadagno, sorgente SDR, finestra dello spettro e i **profili** |
+| **Stato** | le sei righe ✓ / ! che dicono a che punto è la catena |
+| **Rete** | i dati della cella (MCC, MNC, CC, LA, frequenza, cifratura), ognuno con il suo **`?`** |
+| **Chiavi** | quante chiavi hai configurato e il pulsante per aprire l'editor |
+| **Log** | i messaggi, con la spunta del log tecnico e **«Esporta diagnostica»** |
+| **Avanzate** | correzione ppm, dispositivo manuale e dove sono installate le cose |
+
+La scheda **Avanzate** compare solo in **modalità Avanzata**: in **Base** sparisce
+del tutto, così hai davanti solo quello che serve davvero per ascoltare.
+
+**Profili.** Nella scheda *Ricezione* puoi salvare le impostazioni con un nome
+(**«Salva come…»**) e ritrovarle dall'elenco: comodo se segui più reti o più
+antenne. I profili stanno in `~/.config/osmotetra/profili.json` e **non
+contengono mai chiavi**.
+
+**Copia dettagli rete.** Nella scheda *Rete*, il pulsante **«📋 Copia dettagli
+rete»** mette negli appunti un riassunto in testo semplice (MCC, MNC, codice
+colore, area, frequenza, cifratura), pronto da incollare nei tuoi appunti.
+
 ### Il pannello Stato (e i log)
 
-Nel pannello, sotto i pulsanti, c'è il riquadro **Stato**: sei righe che dicono
+Nella scheda **Stato** ci sono sei righe che dicono
 a colpo d'occhio **a che punto è la catena** e, se qualcosa non va, **cosa
 manca**. Passa il mouse su una riga per la spiegazione estesa.
 
@@ -176,11 +203,19 @@ manca**. Passa il mouse su una riga per la spiegazione estesa.
 pulsante **«↧ Usa rete rilevata»** dentro l'editor delle chiavi si accende e
 compila MCC e MNC al posto tuo, già completati a 4 cifre.
 
-**Log a due livelli.** Il riquadro **Log** mostra di suo solo i messaggi che
+**Log a due livelli.** La scheda **Log** mostra di suo solo i messaggi che
 servono a te (avvio, arresto, errori). Spunta **«Log tecnico (mostra tutto)»**
 per vedere anche l'output grezzo di flowgraph e ricevitore: è quello da copiare
 quando chiedi aiuto. Puoi accendere e spegnere la spunta quando vuoi, senza
 perdere nulla di quello che è già passato.
+
+**Esporta diagnostica.** Sempre nella scheda *Log*, il pulsante **«💾 Esporta
+diagnostica…»** salva un file di testo con versioni del sistema, impostazioni,
+componenti installati, stato, dati della rete e le ultime righe di log. È fatto
+per essere allegato quando chiedi aiuto: **non contiene alcuna chiave** — del
+keyfile riporta solo *quante* chiavi ci sono e per quale rete, e dal log il
+materiale di chiave viene rimosso (`tetra-rx` stampa le chiavi caricate
+all'avvio, quindi la ripulitura è indispensabile).
 
 ### Le chiavi di decifratura (con l'interfaccia)
 
@@ -344,8 +379,8 @@ When it finishes, **reopen the terminal** (or `source ~/.bashrc`) so the
    - **Sorgente SDR** = leave **“Chiavetta locale (USB)”** if the dongle is
      plugged straight into the PC.
 4. Press **Start**. The **spectrum window** and **`telive`** open.
-5. Look at the **Stato** (Status) box in the panel: within seconds the rows go
-   from `·` to **✓**. When **“Rete rilevata”** (network detected) shows
+5. Open the **Stato** (Status) tab in the panel: within seconds the rows go from
+   `·` to **✓**. When **“Rete rilevata”** (network detected) shows
    `MCC 222 · MNC 55 …`, you are receiving the network.
 6. Look at **`telive`**: the top shows **`MCC`**, **`MNC`** and the frequencies
    (e.g. `MCC: 222 MNC: 55 … Control:390.5000MHz`). Calls appear in the list and
@@ -379,8 +414,9 @@ After the frequency you can add the device, e.g.
 
 ### The three windows
 
-- **Panel** *(window 1)* — the control panel: set the parameters, press
-  Start/Stop and read the logs. Open it with `osmotetra`.
+- **Panel** *(window 1)* — the control panel, split into tabs: set the
+  parameters, press Start/Stop, check the status and read the logs. Open it with
+  `osmotetra`.
 - **Spectrum window** *(window 2)* — two plots and live controls. It opens with
   everything else if “Show the spectrum window” is ticked; on its own with
   `osmotetra spettro 390.5`; to never open it, untick the box or use
@@ -405,10 +441,36 @@ below:
 The controls act **live**: move `gain`, `ppm` or `Fine tune` while watching the
 spectrum and you see the effect immediately.
 
+### The panel tabs
+
+The frequency, the **Avvia/Ferma** (Start/Stop) buttons and the green/grey
+status bar stay visible at all times; everything else lives in tabs, so each
+thing has its place.
+
+| Tab | What's in it |
+|---|---|
+| **Ricezione** (reception) | frequency, gain, SDR source, spectrum window and the **profiles** |
+| **Stato** (status) | the six ✓ / ! rows telling you how far the chain got |
+| **Rete** (network) | the cell's data (MCC, MNC, CC, LA, frequency, encryption), each with its **`?`** |
+| **Chiavi** (keys) | how many keys you configured, and the button to open the editor |
+| **Log** | the messages, with the technical-log tick and **“Esporta diagnostica”** |
+| **Avanzate** (advanced) | ppm correction, manual device and where everything is installed |
+
+The **Avanzate** tab only shows up in **Advanced** mode: in **Base** it
+disappears entirely, leaving just what you actually need in order to listen.
+
+**Profiles.** In the *Ricezione* tab you can save the settings under a name
+(**“Salva come…”**) and pick them back from the list: handy if you follow several
+networks or antennas. Profiles live in `~/.config/osmotetra/profili.json` and
+**never contain keys**.
+
+**Copy network details.** In the *Rete* tab, the **“📋 Copia dettagli rete”**
+button puts a plain-text summary on the clipboard (MCC, MNC, colour code, area,
+frequency, encryption), ready to paste into your notes.
+
 ### The Status box (and the logs)
 
-In the panel, below the buttons, sits the **Stato** (Status) box: six rows that
-tell you at a glance **how far the chain got** and, when something is wrong,
+The **Stato** (Status) tab holds six rows that tell you at a glance **how far the chain got** and, when something is wrong,
 **what is missing**. Hover a row for the long explanation.
 
 | Row | ✓ means | ! means |
@@ -431,11 +493,18 @@ A grey `·` means the information is not available yet (or the chain is stopped)
 **“↧ Usa rete rilevata”** (use detected network) button inside the key editor
 lights up and fills MCC and MNC for you, already padded to 4 digits.
 
-**Two-level logs.** The **Log** box shows only the messages meant for you by
+**Two-level logs.** The **Log** tab shows only the messages meant for you by
 default (start, stop, errors). Tick **“Log tecnico (mostra tutto)”** (technical
 log) to also see the raw output of the flowgraph and the receiver: that is what
 to copy when asking for help. You can tick and untick it at any time without
 losing anything that already scrolled by.
+
+**Export diagnostics.** Still in the *Log* tab, the **“💾 Esporta diagnostica…”**
+button saves a text file with system versions, settings, installed components,
+status, network data and the last log lines. It is meant to be attached when you
+ask for help: it **contains no keys** — of the keyfile it only reports *how many*
+keys there are and for which network, and key material is stripped out of the log
+(`tetra-rx` prints the loaded keys at startup, so that scrubbing is essential).
 
 ### Decryption keys (with the editor)
 

@@ -18,7 +18,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -26,15 +28,17 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog,
-    QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
+    QHeaderView, QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
+    QPushButton, QSpinBox, QTabWidget, QTableWidget, QTableWidgetItem,
+    QVBoxLayout, QWidget,
 )
 
 # --------------------------------------------------------------------------
@@ -62,6 +66,20 @@ KEY_TYPES = [("1 — CCK/SCK", 1), ("2 — DCK", 2), ("4 — MGCK", 4),
 
 #: porta su cui il tap riceve dal decoder, prima di inoltrare a telive (7379).
 TAP_PORT = 7380
+
+#: dove teniamo i profili di configurazione (non contengono mai chiavi).
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "osmotetra"
+PROFILES_FILE = CONFIG_DIR / "profili.json"
+
+#: qualunque sequenza esadecimale lunga è materiale di chiave: fuori dai file
+#: di diagnostica. tetra-rx stampa le chiavi caricate all'avvio, quindi finiscono
+#: nel log: la diagnostica va ripulita prima di uscire da questo computer.
+_HEX_RUN = re.compile(r"\b[0-9a-fA-F]{16,}\b")
+
+
+def redact_keys(text: str) -> str:
+    """Sostituisce il materiale di chiave con un segnaposto."""
+    return _HEX_RUN.sub("<chiave rimossa>", text)
 
 
 def _lead_int(tail, base):
@@ -592,9 +610,8 @@ class Launcher(QWidget):
         form.addRow("Guadagno RF:", self.gain)
         form.addRow("Sorgente SDR:", self.sdr_kind)
         form.addRow("Indirizzo remoto:", self.remote_w)
-        form.addRow("Correzione (ppm):", self.ppm)
-        form.addRow("Dispositivo (manuale):", self.device)
         form.addRow("", self.show_spectrum)
+        self.tune_box = form_box
 
         self.start_btn = QPushButton("▶  Avvia")
         self.start_btn.clicked.connect(self.on_start)
@@ -610,8 +627,139 @@ class Launcher(QWidget):
         self.status = QLabel("Fermo")
         self.status.setAlignment(Qt.AlignCenter)
 
-        status_box = self._build_status_box()
+        # --- schede -------------------------------------------------------
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._tab_reception(), "Ricezione")
+        self.tabs.addTab(self._tab_status(), "Stato")
+        self.tabs.addTab(self._tab_network(), "Rete")
+        self.tabs.addTab(self._tab_keys(), "Chiavi")
+        self.tabs.addTab(self._tab_log(), "Log")
+        self.adv_tab_index = self.tabs.addTab(self._tab_advanced(), "Avanzate")
 
+        layout = QVBoxLayout(self)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addLayout(mode_row)
+        layout.addLayout(btn_row)
+        layout.addWidget(self.status)
+        layout.addWidget(self.tabs, 1)
+        self.resize(640, 720)
+        self._load_profiles()
+        self._apply_mode()   # imposta la visibilità Base/Avanzata iniziale
+        self._refresh_status()
+
+    # -- le schede ---------------------------------------------------------
+
+    def _tab_reception(self):
+        """Ricezione: quello che serve per partire, e i profili."""
+        w = QWidget(); v = QVBoxLayout(w)
+        v.addWidget(self.tune_box)
+
+        self.profile_combo = QComboBox()
+        self.profile_combo.setToolTip(
+            "Un profilo ricorda frequenza, guadagno, sorgente SDR e le altre "
+            "impostazioni di questa scheda. Non contiene mai chiavi.")
+        self.profile_combo.activated.connect(self._apply_profile)
+        save_prof = QPushButton("Salva come…"); save_prof.clicked.connect(self._save_profile)
+        del_prof = QPushButton("Elimina"); del_prof.clicked.connect(self._delete_profile)
+        pbox = QGroupBox("Profili")
+        ph = QHBoxLayout(pbox)
+        ph.addWidget(self.profile_combo, 1); ph.addWidget(save_prof); ph.addWidget(del_prof)
+        v.addWidget(pbox)
+        v.addWidget(self._muted(
+            "Suggerimento: salva un profilo per ogni rete che ascolti, così "
+            "ritrovi i valori giusti con un clic."))
+        v.addStretch(1)
+        return w
+
+    def _tab_status(self):
+        w = QWidget(); v = QVBoxLayout(w)
+        v.addWidget(self._build_status_box())
+        v.addWidget(self._muted(
+            "Passa il mouse su una riga per la spiegazione. <b>✓</b> a posto, "
+            "<b>!</b> c'è qualcosa da sistemare, <b>·</b> non ancora noto."))
+        v.addStretch(1)
+        return w
+
+    #: campi del riquadro Rete: (chiave, etichetta, spiegazione del «?»)
+    NET_FIELDS = [
+        ("mcc", "MCC (Paese)",
+         "Mobile Country Code: identifica il Paese della rete. 222 = Italia. "
+         "Nel keyfile va scritto a 4 cifre (222 → 0222)."),
+        ("mnc", "MNC (rete)",
+         "Mobile Network Code: identifica la singola rete dentro il Paese. "
+         "Anche questo va a 4 cifre nel keyfile."),
+        ("ccode", "Codice colore (CC)",
+         "Colour Code: distingue celle vicine che usano la stessa frequenza. "
+         "Se cambia mentre ascolti, ti sei spostato su un'altra cella."),
+        ("la", "Area di localizzazione (LA)",
+         "Location Area: il gruppo di celle in cui i terminali sono registrati."),
+        ("control", "Frequenza di discesa",
+         "La frequenza del canale di controllo in discesa (dalla rete ai "
+         "terminali): è quella che stai ascoltando."),
+        ("crypt", "Cifratura",
+         "Via etere TETRA segnala SE il traffico è cifrato, non QUALE algoritmo. "
+         "L'algoritmo lo scegli tu nella scheda Chiavi."),
+        ("seen", "Ultimo aggiornamento",
+         "Quando è arrivato l'ultimo messaggio di rete."),
+    ]
+
+    def _tab_network(self):
+        """Rete: i dati della cella, spiegati uno per uno."""
+        w = QWidget(); v = QVBoxLayout(w)
+        box = QGroupBox("Rete TETRA rilevata")
+        grid = QFormLayout(box)
+        self._net_fields = {}
+        for key, label, tip in self.NET_FIELDS:
+            value = QLabel("—")
+            value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            name = QWidget()
+            h = QHBoxLayout(name); h.setContentsMargins(0, 0, 0, 0)
+            h.addWidget(QLabel(f"{label}:"))
+            help_lbl = QLabel("<b>?</b>")
+            help_lbl.setStyleSheet("color: palette(mid);")
+            help_lbl.setToolTip(tip)
+            h.addWidget(help_lbl); h.addStretch(1)
+            grid.addRow(name, value)
+            self._net_fields[key] = value
+        v.addWidget(box)
+
+        copy_btn = QPushButton("📋  Copia dettagli rete")
+        copy_btn.setToolTip("Copia i dati qui sopra negli appunti, come testo.")
+        copy_btn.clicked.connect(self._copy_network)
+        row = QHBoxLayout(); row.addWidget(copy_btn); row.addStretch(1)
+        v.addLayout(row)
+        v.addWidget(self._muted(
+            "I dati arrivano dai messaggi di rete della cella e compaiono solo "
+            "quando la ricezione è agganciata."))
+        v.addStretch(1)
+        return w
+
+    def _tab_keys(self):
+        """Chiavi: stato del keyfile e accesso all'editor."""
+        w = QWidget(); v = QVBoxLayout(w)
+        box = QGroupBox("Chiavi di decifratura")
+        b = QVBoxLayout(box)
+        self.keys_summary = QLabel("—")
+        self.keys_summary.setWordWrap(True)
+        b.addWidget(self.keys_summary)
+        open_btn = QPushButton("🔑  Apri l'editor delle chiavi…")
+        open_btn.clicked.connect(self.open_keys)
+        b.addWidget(open_btn)
+        b.addWidget(self._muted(f"File: {KEYFILE}"))
+        v.addWidget(box)
+        v.addWidget(self._muted(
+            "⚠ La decifratura funziona <b>solo con chiavi che possiedi "
+            "legittimamente</b> e non rompe alcuna cifratura. Via etere TETRA "
+            "segnala <b>se</b> il traffico è cifrato, non <b>quale</b> algoritmo "
+            "usa: l'algoritmo (TEA1…TEA7) lo scegli tu, in base a quello che sai "
+            "della tua rete. Senza le chiavi giuste le chiamate cifrate restano "
+            "mute — è normale."))
+        v.addStretch(1)
+        return w
+
+    def _tab_log(self):
+        w = QWidget(); v = QVBoxLayout(w)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(2000)
@@ -623,23 +771,53 @@ class Launcher(QWidget):
             "Acceso: anche l'output grezzo di flowgraph e ricevitore, "
             "utile da allegare quando chiedi aiuto.")
         self.log_tech.toggled.connect(self._rerender_log)
-        log_box = QGroupBox("Log")
-        log_layout = QVBoxLayout(log_box)
-        log_layout.addWidget(self.log_tech)
-        log_layout.addWidget(self.log)
+        diag_btn = QPushButton("💾  Esporta diagnostica…")
+        diag_btn.setToolTip("Salva un file di testo con versioni, impostazioni, "
+                            "stato e log — senza alcuna chiave.")
+        diag_btn.clicked.connect(self._export_diagnostics)
+        row = QHBoxLayout()
+        row.addWidget(self.log_tech); row.addStretch(1); row.addWidget(diag_btn)
+        v.addLayout(row)
+        v.addWidget(self.log, 1)
+        return w
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
-        layout.addLayout(mode_row)
-        layout.addWidget(form_box)
-        layout.addLayout(btn_row)
-        layout.addWidget(self.status)
-        layout.addWidget(status_box)
-        layout.addWidget(log_box, 1)
-        self.resize(600, 760)
-        self._apply_mode()   # imposta la visibilità Base/Avanzata iniziale
-        self._refresh_status()
+    def _tab_advanced(self):
+        """Avanzate: i parametri tecnici e dove sono le cose."""
+        w = QWidget(); v = QVBoxLayout(w)
+        box = QGroupBox("Parametri tecnici")
+        self.adv_form = QFormLayout(box)
+        self.adv_form.addRow("Correzione (ppm):", self.ppm)
+        self.adv_form.addRow("Dispositivo (manuale):", self.device)
+        self.adv_form.addRow("", self._muted(
+            "Il campo «Dispositivo» accetta una stringa gr-osmosdr "
+            "(<code>rtl=0</code>, <code>hackrf=0</code>, "
+            "<code>rtl_tcp=IP:porta</code>). Se lo lasci vuoto vale la scelta "
+            "fatta in «Sorgente SDR»."))
+        v.addWidget(box)
+
+        paths = QGroupBox("Dove sono le cose")
+        pf = QFormLayout(paths)
+        for label, value in (
+                ("Sorgenti e binari:", str(HOME)),
+                ("Decoder (osmo-tetra):", str(OSMO_SRC)),
+                ("Monitor (telive):", str(TELIVE_DIR)),
+                ("Keyfile:", str(KEYFILE)),
+                ("Interprete GNU Radio:", GR_PYTHON),
+                ("Porte:", f"XMLRPC {XMLRPC_PORT} · telive {TELIVE_UDP_PORT} "
+                           f"· diagnostica {TAP_PORT}")):
+            val = QLabel(value)
+            val.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            val.setStyleSheet("color: palette(mid);")
+            pf.addRow(label, val)
+        v.addWidget(paths)
+        v.addStretch(1)
+        return w
+
+    @staticmethod
+    def _muted(text):
+        lbl = QLabel(text); lbl.setWordWrap(True); lbl.setTextFormat(Qt.RichText)
+        lbl.setStyleSheet("color: palette(mid);")
+        return lbl
 
     # -- pannello Stato ----------------------------------------------------
 
@@ -745,13 +923,41 @@ class Launcher(QWidget):
         if keys:
             algo = dict((v, k) for k, v in KSG_TYPES).get(
                 int(net.get("ksg_type", 0) or 0), "?")
-            self._set_status_row(
-                "key", True,
-                f"{len(keys)} per MCC {net.get('mcc', '?')} / MNC {net.get('mnc', '?')} "
-                f"· algoritmo scelto: {algo}")
+            summary = (f"{len(keys)} per MCC {net.get('mcc', '?')} / MNC "
+                       f"{net.get('mnc', '?')} · algoritmo scelto: {algo}")
+            self._set_status_row("key", True, summary)
+            self.keys_summary.setText(
+                f"<b>{len(keys)}</b> chiave/i configurate per <b>MCC "
+                f"{net.get('mcc', '?')} / MNC {net.get('mnc', '?')}</b>, algoritmo "
+                f"scelto <b>{algo}</b>, classe di sicurezza "
+                f"{net.get('security_class', '?')}.")
         else:
             self._set_status_row("key", None,
                                  "nessuna — servono solo per decifrare, apri «Chiavi»")
+            self.keys_summary.setText(
+                "Nessuna chiave configurata: sentirai <b>solo le chiamate in "
+                "chiaro</b>. Apri l'editor per inserire le tue.")
+
+        self._refresh_network(st)
+
+    def _refresh_network(self, st):
+        """Riempie la scheda Rete con l'ultimo stato letto."""
+        def show(key, value):
+            self._net_fields[key].setText("—" if value in (None, "") else str(value))
+
+        show("mcc", st["mcc"])
+        show("mnc", st["mnc"])
+        show("ccode", st["ccode"])
+        show("la", st["la"])
+        show("control", f"{st['control']:.4f} MHz" if st["control"] else None)
+        if st["crypt"] >= 2:
+            show("crypt", "sì (l'algoritmo non è deducibile dall'aria)")
+        elif st["crypt"] == 1:
+            show("crypt", "no, traffico in chiaro")
+        else:
+            show("crypt", None)
+        seen = max(st["sync_ts"], st["signal_ts"])
+        show("seen", datetime.fromtimestamp(seen).strftime("%H:%M:%S") if seen else None)
 
     def _detected_net(self):
         """(mcc, mnc) letti dall'aria, o None: alimenta «Usa rete rilevata»."""
@@ -765,15 +971,193 @@ class Launcher(QWidget):
     def _apply_mode(self, *_):
         advanced = self.mode_combo.currentText() == "Avanzata"
         remote = self.sdr_kind.currentData() == "remote"
-        self._row_visible(self.remote_w, remote)
-        self._row_visible(self.ppm, advanced)
-        self._row_visible(self.device, advanced)
+        self._row_visible(self.form, self.remote_w, remote)
+        # in Base la scheda «Avanzate» non si vede proprio: meno cose, meno dubbi
+        self.tabs.setTabVisible(self.adv_tab_index, advanced)
 
-    def _row_visible(self, field, visible):
+    @staticmethod
+    def _row_visible(form, field, visible):
         field.setVisible(visible)
-        lbl = self.form.labelForField(field)
+        lbl = form.labelForField(field)
         if lbl is not None:
             lbl.setVisible(visible)
+
+    # -- profili di configurazione ----------------------------------------
+
+    #: campi salvati in un profilo (mai chiavi, mai percorsi di sistema)
+    def _collect_config(self):
+        return {
+            "freq": self.freq.value(),
+            "gain": self.gain.value(),
+            "ppm": self.ppm.value(),
+            "sdr_kind": self.sdr_kind.currentData(),
+            "remote_ip": self.remote_ip.text().strip(),
+            "remote_port": self.remote_port.value(),
+            "device": self.device.currentText().strip(),
+            "spectrum": self.show_spectrum.isChecked(),
+            "mode": self.mode_combo.currentText(),
+        }
+
+    def _apply_config(self, cfg):
+        self.freq.setValue(float(cfg.get("freq", 390.5)))
+        self.gain.setValue(int(cfg.get("gain", 38)))
+        self.ppm.setValue(float(cfg.get("ppm", 0.0)))
+        idx = self.sdr_kind.findData(cfg.get("sdr_kind", "local"))
+        self.sdr_kind.setCurrentIndex(idx if idx >= 0 else 0)
+        self.remote_ip.setText(str(cfg.get("remote_ip", "192.168.64.1")))
+        self.remote_port.setValue(int(cfg.get("remote_port", 1234)))
+        self.device.setEditText(str(cfg.get("device", "")))
+        self.show_spectrum.setChecked(bool(cfg.get("spectrum", True)))
+        mode = cfg.get("mode", "Base")
+        self.mode_combo.setCurrentIndex(1 if mode == "Avanzata" else 0)
+        self._apply_mode()
+
+    @staticmethod
+    def _read_profiles():
+        try:
+            data = json.loads(PROFILES_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _load_profiles(self):
+        self._profiles = self._read_profiles()
+        self.profile_combo.clear()
+        self.profile_combo.addItem("— nessun profilo —")
+        for name in sorted(self._profiles):
+            self.profile_combo.addItem(name)
+
+    def _apply_profile(self, index):
+        if index <= 0:
+            return
+        cfg = self._profiles.get(self.profile_combo.itemText(index))
+        if cfg:
+            self._apply_config(cfg)
+            self._log(f"[launcher] profilo «{self.profile_combo.itemText(index)}» applicato.")
+
+    def _save_profile(self):
+        current = self.profile_combo.currentText()
+        suggested = current if self.profile_combo.currentIndex() > 0 else ""
+        name, ok = QInputDialog.getText(self, "Salva profilo",
+                                        "Nome del profilo:", text=suggested)
+        name = name.strip()
+        if not ok or not name:
+            return
+        self._profiles[name] = self._collect_config()
+        if not self._write_profiles():
+            return
+        self._load_profiles()
+        self.profile_combo.setCurrentIndex(max(0, self.profile_combo.findText(name)))
+        self._log(f"[launcher] profilo «{name}» salvato in {PROFILES_FILE}")
+
+    def _delete_profile(self):
+        index = self.profile_combo.currentIndex()
+        if index <= 0:
+            QMessageBox.information(self, "Nessun profilo",
+                                    "Scegli prima un profilo dall'elenco.")
+            return
+        name = self.profile_combo.itemText(index)
+        if QMessageBox.question(self, "Elimino?", f"Elimino il profilo «{name}»?",
+                                QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._profiles.pop(name, None)
+        if self._write_profiles():
+            self._load_profiles()
+
+    def _write_profiles(self) -> bool:
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            PROFILES_FILE.write_text(
+                json.dumps(self._profiles, indent=2, ensure_ascii=False), encoding="utf-8")
+            return True
+        except OSError as exc:
+            QMessageBox.critical(self, "Errore",
+                                 f"Impossibile scrivere {PROFILES_FILE}:\n{exc}")
+            return False
+
+    # -- dettagli rete e diagnostica --------------------------------------
+
+    def _network_text(self):
+        """I dati della rete come testo, per gli appunti e la diagnostica."""
+        lines = ["Rete TETRA rilevata da OsmoTetra"]
+        for key, label, _ in self.NET_FIELDS:
+            lines.append(f"{label}: {self._net_fields[key].text()}")
+        return "\n".join(lines) + "\n"
+
+    def _copy_network(self):
+        QApplication.clipboard().setText(self._network_text())
+        self._log("[launcher] dettagli della rete copiati negli appunti.")
+
+    def _diagnostics_text(self):
+        """Rapporto di diagnostica. NON contiene chiavi: il keyfile compare solo
+        come conteggio, e dal log il materiale di chiave viene rimosso."""
+        cfg = self._collect_config()
+        net, keys = parse_keyfile(KEYFILE)
+        out = ["OsmoTetra — diagnostica",
+               f"Generata il: {datetime.now():%Y-%m-%d %H:%M:%S}",
+               "Questo file NON contiene alcuna chiave di decifratura.",
+               "", "== Sistema =="]
+        out.append(f"Python (pannello): {sys.version.split()[0]}")
+        for label, cmd in (("Sistema", ["bash", "-lc",
+                                        ". /etc/os-release 2>/dev/null && echo \"$PRETTY_NAME\""]),
+                           ("GNU Radio", ["gnuradio-config-info", "-v"]),
+                           ("socat", ["bash", "-lc", "socat -V 2>&1 | head -2 | tail -1"])):
+            out.append(f"{label}: {self._run_brief(cmd)}")
+
+        out += ["", "== Impostazioni =="]
+        for k, v in cfg.items():
+            out.append(f"{k}: {v}")
+        out.append(f"device_args effettivi: {self._device_args() or '(automatico)'}")
+
+        out += ["", "== Componenti =="]
+        for label, path in (("flowgraph", FLOWGRAPH), ("tetra-rx", OSMO_SRC / "tetra-rx"),
+                            ("receiver1udp", OSMO_SRC / "receiver1udp"),
+                            ("demodulatore", OSMO_SRC / "demod" / "simdemod3_telive.py"),
+                            ("telive", TELIVE_DIR / "telive"), ("keyfile", KEYFILE)):
+            out.append(f"{label}: {path} — {'presente' if Path(path).exists() else 'MANCANTE'}")
+
+        out += ["", "== Stato =="]
+        out.append(f"catena in esecuzione: {'sì' if self._procs else 'no'}")
+        for key, label, _ in self.STATUS_ROWS:
+            mark, text = self._status_rows[key]
+            out.append(f"[{mark.text()}] {label}: {text.text()}")
+
+        out += ["", "== Rete ==", self._network_text().strip()]
+
+        out += ["", "== Chiavi (solo conteggio) ==",
+                f"chiavi nel keyfile: {len(keys)}",
+                f"rete del keyfile: MCC {net.get('mcc', '—')} / MNC {net.get('mnc', '—')}",
+                f"ksg_type: {net.get('ksg_type', '—')} · "
+                f"security_class: {net.get('security_class', '—')}"]
+
+        out += ["", "== Log (ultime 300 righe, chiavi rimosse) =="]
+        out += [redact_keys(t) for _, t in self._log_lines[-300:]]
+        return "\n".join(out) + "\n"
+
+    @staticmethod
+    def _run_brief(cmd):
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            return (res.stdout.strip() or res.stderr.strip() or "?").splitlines()[0]
+        except (OSError, subprocess.SubprocessError, IndexError):
+            return "non disponibile"
+
+    def _export_diagnostics(self):
+        default = str(Path.home() / f"osmotetra-diagnostica-{datetime.now():%Y%m%d-%H%M%S}.txt")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Esporta diagnostica", default, "File di testo (*.txt)")
+        if not path:
+            return
+        try:
+            Path(path).write_text(self._diagnostics_text(), encoding="utf-8")
+        except OSError as exc:
+            QMessageBox.critical(self, "Errore", f"Impossibile scrivere {path}:\n{exc}")
+            return
+        QMessageBox.information(
+            self, "Diagnostica salvata",
+            f"Salvata in:\n{path}\n\nContiene versioni, impostazioni, stato e log "
+            f"(con le chiavi rimosse). Puoi allegarla quando chiedi aiuto.")
+        self._log(f"[launcher] diagnostica esportata in {path}")
 
     def _device_args(self):
         """Costruisce la stringa gr-osmosdr dalla scelta dell'utente."""
@@ -789,7 +1173,8 @@ class Launcher(QWidget):
         self.start_btn.setEnabled(not running)
         self.stop_btn.setEnabled(running)
         for w in (self.freq, self.gain, self.ppm, self.device, self.show_spectrum,
-                  self.sdr_kind, self.remote_ip, self.remote_port, self.mode_combo):
+                  self.sdr_kind, self.remote_ip, self.remote_port, self.mode_combo,
+                  self.profile_combo):
             w.setEnabled(not running)
         if running:
             self.status.setText("In esecuzione — guarda la finestra di telive")

@@ -150,22 +150,30 @@ modificare a mano il file di testo: c'è un editor grafico.
 **Come aprirlo:** premi il pulsante **«🔑 Chiavi di decifratura…»** nel pannello,
 oppure da terminale `osmotetra chiavi`.
 
-**Come si usa:**
+**Come si usa** (parte in **modalità guidata**: vedi solo l'essenziale):
 
 1. In alto, sezione **Rete**, compila:
-   - **MCC** e **MNC** della rete (es. `0222` e `0055`);
-   - **Cifratura (ksg_type)**: scegli `TEA1`…`TEA7` (per la maggior parte delle
-     reti europee è **TEA1**);
+   - **MCC** e **MNC** della rete (es. `222` e `55`): l'editor li completa da solo
+     a 4 cifre (`222` → `0222`);
+   - **Algoritmo (ksg_type)**: scegli `TEA1`…`TEA7`. **Seleziona l'algoritmo
+     previsto dalla tua rete o dal tuo banco di prova — non sceglierlo in base al
+     Paese.** (Via etere TETRA segnala *se* il traffico è cifrato, non *quale*
+     algoritmo: quello lo sai tu.)
    - **Classe di sicurezza**: `2` (SCK) oppure `3` (CCK+DCK).
 2. In basso, tabella **Chiavi**, per ogni chiave premi **«+ Aggiungi chiave»** e
    compila:
-   - **MCC / MNC**: lasciali vuoti per usare quelli della rete;
-   - **Tipo chiave**: di solito `1 — CCK/SCK`, oppure `16` per una chiave TEA1
+   - **Tipo di chiave**: di solito `1 — CCK/SCK`, oppure `16` per una chiave TEA1
      accorciata a 32 bit;
    - **Chiave**: la chiave in **esadecimale a 80 bit** (20 cifre). Per il tipo
      `16` metti le 8 cifre e riempi con zeri fino a 20 (es. `12345678000000000000`).
-3. Premi **💾 Salva**. L'editor scrive il keyfile che usa il decoder.
-4. **Avvia (o riavvia)** la ricezione: adesso le chiamate cifrate con quelle
+     È mascherata; spunta **«Mostra chiavi»** per vederla.
+   - I campi tecnici (`addr`, `key_num`, MCC/MNC per singola chiave) sono nascosti:
+     compaiono spuntando **«Parametri avanzati ▼»**.
+3. (Facoltativo) **«🔎 Mostra file generato»** ti fa vedere esattamente cosa
+   scriverà l'editor (`network …` / `key …`): utile per imparare il formato.
+4. Premi **💾 Salva**. Ti mostra un riepilogo (rete, algoritmo, numero di chiavi,
+   file), poi scrive il keyfile con permessi riservati al tuo utente (`0600`).
+5. **Avvia (o riavvia)** la ricezione: adesso le chiamate cifrate con quelle
    chiavi vengono decifrate.
 
 > Senza chiavi (o con la sola chiave d'esempio) sentirai **solo le chiamate in
@@ -349,22 +357,30 @@ file by hand: there is a graphical editor.
 **How to open it:** press the **“🔑 Chiavi di decifratura…”** button in the panel,
 or from a terminal `osmotetra chiavi`.
 
-**How to use it:**
+**How to use it** (it starts in **guided mode**: you only see the essentials):
 
 1. At the top, **Rete** (Network) section, fill in:
-   - the network's **MCC** and **MNC** (e.g. `0222` and `0055`);
-   - **Cifratura (ksg_type)**: choose `TEA1`…`TEA7` (most European networks use
-     **TEA1**);
+   - the network's **MCC** and **MNC** (e.g. `222` and `55`): the editor pads them
+     to 4 digits by itself (`222` → `0222`);
+   - **Algoritmo (ksg_type)**: choose `TEA1`…`TEA7`. **Pick the algorithm your
+     network or test setup uses — do not choose it by country.** (Over the air
+     TETRA signals *whether* traffic is encrypted, not *which* algorithm: that
+     part is your knowledge.)
    - **Classe di sicurezza** (security class): `2` (SCK) or `3` (CCK+DCK).
 2. At the bottom, **Chiavi** (Keys) table, for each key press **“+ Aggiungi
    chiave”** and fill in:
-   - **MCC / MNC**: leave empty to use the network's ones;
-   - **Tipo chiave** (key type): usually `1 — CCK/SCK`, or `16` for a 32-bit
+   - **Tipo di chiave** (key type): usually `1 — CCK/SCK`, or `16` for a 32-bit
      shortened TEA1 key;
    - **Chiave** (key): the key in **80-bit hex** (20 digits). For type `16` enter
-     the 8 digits and pad with zeros up to 20 (e.g. `12345678000000000000`).
-3. Press **💾 Salva** (Save). The editor writes the keyfile the decoder uses.
-4. **Start (or restart)** reception: calls encrypted with those keys are now
+     the 8 digits and pad with zeros up to 20 (e.g. `12345678000000000000`). It is
+     masked; tick **“Mostra chiavi”** to reveal it.
+   - The technical fields (`addr`, `key_num`, per-key MCC/MNC) are hidden: they
+     appear when you tick **“Parametri avanzati ▼”**.
+3. (Optional) **“🔎 Mostra file generato”** shows exactly what the editor will
+   write (`network …` / `key …`): handy to learn the format.
+4. Press **💾 Salva** (Save). It shows a summary (network, algorithm, number of
+   keys, file), then writes the keyfile with owner-only permissions (`0600`).
+5. **Start (or restart)** reception: calls encrypted with those keys are now
    decrypted.
 
 > Without keys (or with only the sample key) you will hear **clear calls only**;

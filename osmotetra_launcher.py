@@ -96,16 +96,22 @@ class KeyEditor(QDialog):
         self._build_ui()
         self.load()
 
+    # colonne della tabella chiavi (le "avanzate" si nascondono in modalità guidata)
+    COL_TYPE, COL_KEY, COL_MCC, COL_MNC, COL_ADDR, COL_KNUM = range(6)
+    ADV_COLS = (COL_MCC, COL_MNC, COL_ADDR, COL_KNUM)
+
     def _build_ui(self):
         info = QLabel(
-            "Compila i campi e premi <b>Salva</b>: scrive il keyfile che usa il "
-            "decoder, senza doverlo modificare a mano.<br>⚠ Funziona <b>solo con "
-            "chiavi che possiedi legittimamente</b>. Non rompe alcuna cifratura.")
-        info.setWordWrap(True)
-        info.setTextFormat(Qt.RichText)
+            "Compila i campi e premi <b>Salva</b>: l'editor scrive il keyfile che "
+            "usa il decoder, senza doverlo modificare a mano.<br>⚠ Funziona <b>solo "
+            "con chiavi che possiedi legittimamente</b>. Non rompe alcuna cifratura.")
+        info.setWordWrap(True); info.setTextFormat(Qt.RichText)
 
-        self.mcc = QLineEdit(); self.mcc.setPlaceholderText("es. 0222")
-        self.mnc = QLineEdit(); self.mnc.setPlaceholderText("es. 0055")
+        # --- Rete ---
+        self.mcc = QLineEdit(); self.mcc.setPlaceholderText("es. 222")
+        self.mnc = QLineEdit(); self.mnc.setPlaceholderText("es. 55")
+        self.mcc.editingFinished.connect(lambda: self.mcc.setText(self._pad(self.mcc.text())))
+        self.mnc.editingFinished.connect(lambda: self.mnc.setText(self._pad(self.mnc.text())))
         self.ksg = QComboBox()
         for label, val in KSG_TYPES:
             self.ksg.addItem(label, val)
@@ -116,58 +122,74 @@ class KeyEditor(QDialog):
         net = QFormLayout(net_box)
         net.addRow("MCC:", self.mcc)
         net.addRow("MNC:", self.mnc)
-        net.addRow("Cifratura (ksg_type):", self.ksg)
+        net.addRow("Algoritmo (ksg_type):", self.ksg)
         net.addRow("Classe di sicurezza:", self.sec)
+        net.addRow("", self._muted("MCC/MNC vengono completati a 4 cifre (222 → 0222)."))
 
+        # --- Chiavi ---
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
-            ["MCC", "MNC", "addr", "Tipo chiave", "key_num", "Chiave (80 bit, esadecimale)"])
-        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+            ["Tipo di chiave", "Chiave (80 bit hex)", "MCC", "MNC", "addr", "key_num"])
+        self.table.horizontalHeader().setSectionResizeMode(self.COL_KEY, QHeaderView.Stretch)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+
         add_btn = QPushButton("+ Aggiungi chiave"); add_btn.clicked.connect(lambda: self.add_row())
         del_btn = QPushButton("− Rimuovi selezionata"); del_btn.clicked.connect(self.del_row)
-        keyhint = QLabel(
-            "Tipo chiave <b>16</b> = chiave TEA1 accorciata a 32 bit (8 cifre) da "
-            "riempire con zeri fino a 80 bit (20 cifre). Le altre = chiave intera a "
-            "80 bit (20 cifre esadecimali). MCC/MNC vuoti = quelli della rete.")
-        keyhint.setWordWrap(True); keyhint.setTextFormat(Qt.RichText)
-        keyhint.setStyleSheet("color: palette(mid);")
+        self.show_keys = QCheckBox("Mostra chiavi"); self.show_keys.toggled.connect(self._apply_key_echo)
+        self.show_adv = QCheckBox("Parametri avanzati  ▼")
+        self.show_adv.setToolTip("Mostra addr, key_num e MCC/MNC specifici per singola chiave")
+        self.show_adv.toggled.connect(self._toggle_adv)
+
+        keyhint = self._muted(
+            "<b>Tipo di chiave</b>: di solito <b>1</b> (CCK/SCK), oppure <b>16</b> per "
+            "una chiave TEA1 accorciata a 32 bit (8 cifre) da riempire con zeri fino a "
+            "20 cifre (80 bit). La <b>chiave</b> è esadecimale: 20 cifre = 80 bit.")
+
         key_box = QGroupBox("Chiavi")
         kb = QVBoxLayout(key_box)
+        toolrow = QHBoxLayout()
+        toolrow.addWidget(add_btn); toolrow.addWidget(del_btn)
+        toolrow.addStretch(1)
+        toolrow.addWidget(self.show_keys); toolrow.addWidget(self.show_adv)
+        kb.addLayout(toolrow)
         kb.addWidget(self.table)
-        row = QHBoxLayout(); row.addWidget(add_btn); row.addWidget(del_btn); row.addStretch(1)
-        kb.addLayout(row)
         kb.addWidget(keyhint)
 
+        # --- pulsanti ---
+        gen_btn = QPushButton("🔎  Mostra file generato"); gen_btn.clicked.connect(self.show_generated)
         load_btn = QPushButton("Ricarica dal file"); load_btn.clicked.connect(self.load)
         save_btn = QPushButton("💾  Salva"); save_btn.clicked.connect(self.save)
         close_btn = QPushButton("Chiudi"); close_btn.clicked.connect(self.close)
         btns = QHBoxLayout()
-        btns.addWidget(QLabel(f"File: {self.keyfile}"))
-        btns.addStretch(1)
+        btns.addWidget(gen_btn); btns.addStretch(1)
         btns.addWidget(load_btn); btns.addWidget(save_btn); btns.addWidget(close_btn)
 
         layout = QVBoxLayout(self)
         layout.addWidget(info)
         layout.addWidget(net_box)
         layout.addWidget(key_box, 1)
+        layout.addWidget(self._muted(f"File: {self.keyfile}"))
         layout.addLayout(btns)
-        self.resize(680, 500)
+        self.resize(700, 520)
+        self._toggle_adv(False)   # parte in modalità guidata
 
     def add_row(self, mcc="", mnc="", addr="00000000", key_type=1, key_num="0", key=""):
         r = self.table.rowCount()
         self.table.insertRow(r)
-        self.table.setItem(r, 0, QTableWidgetItem(mcc or self.mcc.text().strip()))
-        self.table.setItem(r, 1, QTableWidgetItem(mnc or self.mnc.text().strip()))
-        self.table.setItem(r, 2, QTableWidgetItem(addr))
         combo = QComboBox()
         for label, val in KEY_TYPES:
             combo.addItem(label, val)
         idx = combo.findData(int(key_type))
         combo.setCurrentIndex(idx if idx >= 0 else 0)
-        self.table.setCellWidget(r, 3, combo)
-        self.table.setItem(r, 4, QTableWidgetItem(str(key_num)))
-        self.table.setItem(r, 5, QTableWidgetItem(key))
+        self.table.setCellWidget(r, self.COL_TYPE, combo)
+        edit = QLineEdit(key)
+        edit.setPlaceholderText("20 cifre esadecimali")
+        edit.setEchoMode(QLineEdit.Normal if self.show_keys.isChecked() else QLineEdit.Password)
+        self.table.setCellWidget(r, self.COL_KEY, edit)
+        self.table.setItem(r, self.COL_MCC, QTableWidgetItem(mcc))
+        self.table.setItem(r, self.COL_MNC, QTableWidgetItem(mnc))
+        self.table.setItem(r, self.COL_ADDR, QTableWidgetItem(addr))
+        self.table.setItem(r, self.COL_KNUM, QTableWidgetItem(str(key_num)))
 
     def del_row(self):
         r = self.table.currentRow()
@@ -187,52 +209,116 @@ class KeyEditor(QDialog):
         if not keys:
             self.add_row()
 
-    def save(self):
-        mcc = self.mcc.text().strip(); mnc = self.mnc.text().strip()
-        if not mcc or not mnc:
+    # -- generazione / salvataggio ----------------------------------------
+
+    def _network_line(self):
+        mcc, mnc = self._pad(self.mcc.text()), self._pad(self.mnc.text())
+        line = (f"network mcc {mcc} mnc {mnc} ksg_type {self.ksg.currentData()} "
+                f"security_class {self.sec.currentData()}")
+        return mcc, mnc, line
+
+    def _generate(self, validate):
+        """Costruisce il testo del keyfile. Se validate, controlla le chiavi e
+        restituisce None (dopo aver avvisato) su errore."""
+        mcc, mnc, netline = self._network_line()
+        if validate and (not mcc or not mnc):
             QMessageBox.warning(self, "Manca la rete", "Inserisci MCC e MNC della rete.")
-            return
-        lines = [
-            "# keyfile generato dall'editor di OsmoTetra",
-            "# Decifra SOLO con chiavi in tuo possesso legittimo.",
-            "",
-            f"network mcc {mcc} mnc {mnc} ksg_type {self.ksg.currentData()} "
-            f"security_class {self.sec.currentData()}",
-        ]
+            return None
+        lines = ["# keyfile generato dall'editor di OsmoTetra",
+                 "# Decifra SOLO con chiavi in tuo possesso legittimo.", "", netline]
         for r in range(self.table.rowCount()):
-            key = self._cell(r, 5).lower()
+            key = self.table.cellWidget(r, self.COL_KEY).text().strip().lower()
             if not key:
                 continue
-            if any(ch not in "0123456789abcdef" for ch in key):
-                QMessageBox.warning(self, "Chiave non valida",
-                                    f"La chiave alla riga {r + 1} deve essere esadecimale.")
-                return
-            if len(key) != 20:
-                res = QMessageBox.question(
-                    self, "Lunghezza chiave",
-                    f"La chiave alla riga {r + 1} ha {len(key)} cifre invece di 20 "
-                    f"(80 bit). La salvo lo stesso?", QMessageBox.Yes | QMessageBox.No)
-                if res != QMessageBox.Yes:
-                    return
-            combo = self.table.cellWidget(r, 3)
+            if validate:
+                if any(ch not in "0123456789abcdef" for ch in key):
+                    QMessageBox.warning(self, "Chiave non valida",
+                                        f"La chiave alla riga {r + 1} deve contenere solo "
+                                        f"cifre esadecimali (0-9, a-f).")
+                    return None
+                if len(key) != 20:
+                    res = QMessageBox.question(
+                        self, "Controlla la lunghezza",
+                        f"Riga {r + 1}: hai inserito {len(key)} cifre esadecimali = "
+                        f"{len(key) * 4} bit.\nIl formato standard di questo campo è "
+                        f"20 cifre = 80 bit.\n\nLa salvo comunque così com'è?",
+                        QMessageBox.Yes | QMessageBox.No)
+                    if res != QMessageBox.Yes:
+                        return None
+            kmcc = self._pad(self._cell(r, self.COL_MCC)) or mcc
+            kmnc = self._pad(self._cell(r, self.COL_MNC)) or mnc
+            ktype = self.table.cellWidget(r, self.COL_TYPE).currentData()
             lines.append(
-                f"key mcc {self._cell(r, 0) or mcc} mnc {self._cell(r, 1) or mnc} "
-                f"addr {self._cell(r, 2) or '00000000'} key_type {combo.currentData()} "
-                f"key_num {self._cell(r, 4) or '0'} key {key}")
+                f"key mcc {kmcc} mnc {kmnc} addr {self._cell(r, self.COL_ADDR) or '00000000'} "
+                f"key_type {ktype} key_num {self._cell(r, self.COL_KNUM) or '0'} key {key}")
+        return "\n".join(lines) + "\n"
+
+    def show_generated(self):
+        text = self._generate(validate=False)
+        dlg = QDialog(self)
+        dlg.setWindowTitle("File generato — anteprima")
+        v = QVBoxLayout(dlg)
+        v.addWidget(QLabel("Questo è ciò che l'editor scriverà nel keyfile:"))
+        view = QPlainTextEdit(); view.setReadOnly(True); view.setPlainText(text)
+        mono = QFont("Monospace"); mono.setStyleHint(QFont.TypeWriter); view.setFont(mono)
+        v.addWidget(view)
+        b = QPushButton("Chiudi"); b.clicked.connect(dlg.accept)
+        v.addWidget(b)
+        dlg.resize(620, 380); dlg.exec_()
+
+    def save(self):
+        text = self._generate(validate=True)
+        if text is None:
+            return
+        mcc, mnc, _ = self._network_line()
+        nkeys = text.count("\nkey mcc")
+        summary = (f"Rete: {mcc} / {mnc}\nAlgoritmo: {self.ksg.currentText()}\n"
+                   f"Security class: {self.sec.currentData()}\n"
+                   f"Chiavi configurate: {nkeys}\nFile: {self.keyfile}")
+        if QMessageBox.question(self, "Confermi il salvataggio?",
+                                summary + "\n\nSalvo la configurazione?",
+                                QMessageBox.Yes | QMessageBox.No) != QMessageBox.Yes:
+            return
         try:
             self.keyfile.parent.mkdir(parents=True, exist_ok=True)
-            self.keyfile.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            self.keyfile.write_text(text, encoding="utf-8")
+            os.chmod(self.keyfile, 0o600)   # materiale crittografico: solo il tuo utente
         except OSError as exc:
             QMessageBox.critical(self, "Errore", f"Impossibile scrivere {self.keyfile}:\n{exc}")
             return
         QMessageBox.information(
             self, "Salvato",
-            f"Chiavi salvate in:\n{self.keyfile}\n\nAvvia (o riavvia) la ricezione per usarle.")
+            f"Chiavi salvate in:\n{self.keyfile}\n(permessi riservati al tuo utente, 0600)\n\n"
+            f"Avvia (o riavvia) la ricezione per usarle.")
+
+    # -- comportamento GUI -------------------------------------------------
+
+    def _toggle_adv(self, on):
+        for c in self.ADV_COLS:
+            self.table.setColumnHidden(c, not on)
+
+    def _apply_key_echo(self):
+        mode = QLineEdit.Normal if self.show_keys.isChecked() else QLineEdit.Password
+        for r in range(self.table.rowCount()):
+            w = self.table.cellWidget(r, self.COL_KEY)
+            if w is not None:
+                w.setEchoMode(mode)
 
     # -- helper -----------------------------------------------------------
     def _cell(self, r, c):
         it = self.table.item(r, c)
         return it.text().strip() if it else ""
+
+    @staticmethod
+    def _pad(s):
+        s = str(s).strip()
+        return s.zfill(4) if s.isdigit() else s
+
+    @staticmethod
+    def _muted(text):
+        lbl = QLabel(text); lbl.setWordWrap(True); lbl.setTextFormat(Qt.RichText)
+        lbl.setStyleSheet("color: palette(mid);")
+        return lbl
 
     @staticmethod
     def _select(combo, value):

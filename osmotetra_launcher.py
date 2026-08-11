@@ -554,9 +554,14 @@ class Launcher(QWidget):
         self.freq = QDoubleSpinBox()
         self.freq.setRange(100.0, 1000.0)
         self.freq.setDecimals(4)
-        self.freq.setSingleStep(0.0125)
+        # i canali TETRA stanno su un reticolo di 25 kHz: la freccetta si muove
+        # di un canale per volta, così non si finisce a metà strada fra due.
+        self.freq.setSingleStep(0.025)
         self.freq.setValue(390.5)
         self.freq.setSuffix(" MHz")
+        self.freq.valueChanged.connect(self._check_raster)
+        self.freq_hint = QLabel("")
+        self.freq_hint.setWordWrap(True)
 
         self.gain = QSpinBox()
         self.gain.setRange(0, 50)
@@ -607,6 +612,7 @@ class Launcher(QWidget):
         self.form = QFormLayout(form_box)
         form = self.form
         form.addRow("Frequenza del canale:", self.freq)
+        form.addRow("", self.freq_hint)
         form.addRow("Guadagno RF:", self.gain)
         form.addRow("Sorgente SDR:", self.sdr_kind)
         form.addRow("Indirizzo remoto:", self.remote_w)
@@ -981,6 +987,23 @@ class Launcher(QWidget):
         lbl = form.labelForField(field)
         if lbl is not None:
             lbl.setVisible(visible)
+
+    def _check_raster(self, mhz):
+        """I canali TETRA stanno su multipli di 25 kHz. Se la frequenza cade in
+        mezzo, il decoder non aggancia nulla pur vedendo il segnale: meglio
+        dirlo subito, invece di lasciar cercare l'errore altrove."""
+        khz = round(mhz * 1000, 3)
+        off = abs(khz % 25.0)
+        off = min(off, 25.0 - off)
+        if off < 0.001:
+            self.freq_hint.setText("")
+            return
+        near = round(khz / 25.0) * 25.0 / 1000.0
+        self.freq_hint.setText(
+            f"⚠ {mhz:.4f} MHz non è sul reticolo dei canali TETRA (25 kHz): "
+            f"sei a {off:.1f} kHz dal canale più vicino, <b>{near:.4f} MHz</b>. "
+            f"Se non decodifichi, prova quello.")
+        self.freq_hint.setStyleSheet("color:#c9781a;")
 
     # -- profili di configurazione ----------------------------------------
 

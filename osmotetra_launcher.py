@@ -385,6 +385,20 @@ class Launcher(QWidget):
         self.ppm.setValue(0.0)
         self.ppm.setSuffix(" ppm")
 
+        # sorgente SDR "amichevole": locale (USB) oppure remota (rete / VM)
+        self.sdr_kind = QComboBox()
+        self.sdr_kind.addItem("Chiavetta locale (USB)", "local")
+        self.sdr_kind.addItem("Chiavetta remota (rete / VM)", "remote")
+        self.sdr_kind.currentIndexChanged.connect(self._apply_mode)
+        self.remote_ip = QLineEdit("192.168.64.1")
+        self.remote_port = QSpinBox()
+        self.remote_port.setRange(1, 65535); self.remote_port.setValue(1234)
+        self.remote_w = QWidget()
+        rr = QHBoxLayout(self.remote_w); rr.setContentsMargins(0, 0, 0, 0)
+        rr.addWidget(QLabel("IP")); rr.addWidget(self.remote_ip, 1)
+        rr.addWidget(QLabel("porta")); rr.addWidget(self.remote_port)
+
+        # campo tecnico (solo modalità Avanzata): stringa gr-osmosdr manuale
         self.device = QComboBox()
         self.device.setEditable(True)
         for label, args in DEVICE_PRESETS:
@@ -392,17 +406,28 @@ class Launcher(QWidget):
         self.device.currentIndexChanged.connect(
             lambda i: self.device.setEditText(self.device.itemData(i) or ""))
         self.device.setEditText("")
-        self.device.lineEdit().setPlaceholderText("vuoto = prima chiavetta trovata")
+        self.device.lineEdit().setPlaceholderText("vuoto = usa la selezione qui sopra")
 
         self.show_spectrum = QCheckBox("Mostra la finestra dello spettro (grafici + controlli)")
         self.show_spectrum.setChecked(True)
 
+        # interruttore Base / Avanzata
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Base", "Avanzata"])
+        self.mode_combo.currentIndexChanged.connect(self._apply_mode)
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Modalità:")); mode_row.addWidget(self.mode_combo)
+        mode_row.addStretch(1)
+
         form_box = QGroupBox("Sintonia")
-        form = QFormLayout(form_box)
+        self.form = QFormLayout(form_box)
+        form = self.form
         form.addRow("Frequenza del canale:", self.freq)
         form.addRow("Guadagno RF:", self.gain)
-        form.addRow("Correzione:", self.ppm)
-        form.addRow("Dispositivo:", self.device)
+        form.addRow("Sorgente SDR:", self.sdr_kind)
+        form.addRow("Indirizzo remoto:", self.remote_w)
+        form.addRow("Correzione (ppm):", self.ppm)
+        form.addRow("Dispositivo (manuale):", self.device)
         form.addRow("", self.show_spectrum)
 
         self.start_btn = QPushButton("▶  Avvia")
@@ -431,16 +456,44 @@ class Launcher(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(title)
         layout.addWidget(subtitle)
+        layout.addLayout(mode_row)
         layout.addWidget(form_box)
         layout.addLayout(btn_row)
         layout.addWidget(self.status)
         layout.addWidget(log_box, 1)
-        self.resize(560, 560)
+        self.resize(560, 580)
+        self._apply_mode()   # imposta la visibilità Base/Avanzata iniziale
+
+    # -- modalità Base / Avanzata -----------------------------------------
+
+    def _apply_mode(self, *_):
+        advanced = self.mode_combo.currentText() == "Avanzata"
+        remote = self.sdr_kind.currentData() == "remote"
+        self._row_visible(self.remote_w, remote)
+        self._row_visible(self.ppm, advanced)
+        self._row_visible(self.device, advanced)
+
+    def _row_visible(self, field, visible):
+        field.setVisible(visible)
+        lbl = self.form.labelForField(field)
+        if lbl is not None:
+            lbl.setVisible(visible)
+
+    def _device_args(self):
+        """Costruisce la stringa gr-osmosdr dalla scelta dell'utente."""
+        if self.mode_combo.currentText() == "Avanzata":
+            manual = self.device.currentText().strip()
+            if manual:
+                return manual
+        if self.sdr_kind.currentData() == "remote":
+            return f"rtl_tcp={self.remote_ip.text().strip()}:{self.remote_port.value()}"
+        return ""
 
     def _set_running(self, running: bool):
         self.start_btn.setEnabled(not running)
         self.stop_btn.setEnabled(running)
-        for w in (self.freq, self.gain, self.ppm, self.device, self.show_spectrum):
+        for w in (self.freq, self.gain, self.ppm, self.device, self.show_spectrum,
+                  self.sdr_kind, self.remote_ip, self.remote_port, self.mode_combo):
             w.setEnabled(not running)
         if running:
             self.status.setText("In esecuzione — guarda la finestra di telive")
@@ -472,7 +525,7 @@ class Launcher(QWidget):
         QApplication.processEvents()
 
         freq_hz = self.freq.value() * 1e6
-        device_args = self.device.currentText().strip()
+        device_args = self._device_args()
 
         # 1) flowgraph headless
         fg_cmd = [

@@ -86,13 +86,18 @@ Al termine, **riapri il terminale** (o `source ~/.bashrc`) per avere il comando
      l'app tiene l'SDR 500 kHz più in là (offset anti-DC) così il segnale non
      cade sul picco disturbato della chiavetta.
    - **Guadagno RF** = parti da `38` dB; se non ricevi, alzalo.
-   - **Dispositivo** = lascia «rilevamento automatico» se la chiavetta è
-     collegata direttamente.
+   - **Sorgente SDR** = lascia **«Chiavetta locale (USB)»** se la chiavetta è
+     collegata direttamente al PC.
 4. Premi **Avvia**. Si aprono la **finestra dello spettro** e **`telive`**.
 5. Guarda **`telive`**: quando in alto compaiono **`MCC`**, **`MNC`** e le
    frequenze (es. `MCC: 222 MNC: 55 … Control:390.5000MHz`), stai ricevendo la
    rete. Le chiamate compaiono nell'elenco e nella finestra dei messaggi.
 6. Per **fermare**: premi **Ferma** nel pannello, oppure `q` dentro `telive`.
+
+> **Base o Avanzata?** In alto c'è il selettore **Modalità**. In **Base** vedi
+> solo l'essenziale (frequenza, guadagno, sorgente SDR). In **Avanzata**
+> compaiono anche la **correzione ppm** e il campo **Dispositivo (manuale)** per
+> stringhe gr-osmosdr particolari (`hackrf=0`, `rtl=1`…).
 
 Non ricevi nulla? Vai a **«Se qualcosa non va»** più in basso.
 
@@ -206,8 +211,10 @@ Soluzione: lasciala al **sistema ospitante** ed esponila via rete. Sull'host:
 rtl_tcp -a 0.0.0.0 -p 1234
 ```
 
-lascia quella finestra aperta e, nel pannello, imposta **Dispositivo** =
-`rtl_tcp=INDIRIZZO_HOST:1234` (es. `rtl_tcp=192.168.64.1:1234`).
+lascia quella finestra aperta e, nel pannello, imposta **Sorgente SDR** =
+**«Chiavetta remota (rete / VM)»**, poi scrivi l'**IP dell'host** (es.
+`192.168.64.1`) e la **porta** `1234`. (L'app costruisce da sola la stringa
+`rtl_tcp=192.168.64.1:1234`.)
 
 ### Se qualcosa non va
 
@@ -294,12 +301,18 @@ When it finishes, **reopen the terminal** (or `source ~/.bashrc`) so the
      keeps the SDR tuned 500 kHz away (anti-DC offset) so the signal never sits
      on the dongle's noisy DC spike.
    - **RF gain** = start at `38` dB; if you get nothing, raise it.
-   - **Device** = leave “automatic” if the dongle is directly connected.
+   - **Sorgente SDR** = leave **“Chiavetta locale (USB)”** if the dongle is
+     plugged straight into the PC.
 4. Press **Start**. The **spectrum window** and **`telive`** open.
 5. Look at **`telive`**: when the top shows **`MCC`**, **`MNC`** and the
    frequencies (e.g. `MCC: 222 MNC: 55 … Control:390.5000MHz`), you are
    receiving the network. Calls appear in the list and in the message window.
 6. To **stop**: press **Stop** in the panel, or `q` inside `telive`.
+
+> **Base or Advanced?** At the top there is a **Modalità** (mode) selector. In
+> **Base** you see only the essentials (frequency, gain, SDR source). In
+> **Avanzata** (Advanced) you also get the **ppm correction** and a **manual
+> device** field for special gr-osmosdr strings (`hackrf=0`, `rtl=1`…).
 
 Nothing received? See **“Troubleshooting”** below.
 
@@ -413,8 +426,9 @@ keep it on the **host** and expose it over the network. On the host:
 rtl_tcp -a 0.0.0.0 -p 1234
 ```
 
-leave that window open and, in the panel, set **Device** =
-`rtl_tcp=HOST_ADDRESS:1234` (e.g. `rtl_tcp=192.168.64.1:1234`).
+leave that window open and, in the panel, set **Sorgente SDR** = **“Chiavetta
+remota (rete / VM)”**, then type the **host IP** (e.g. `192.168.64.1`) and the
+**port** `1234`. (The app builds the `rtl_tcp=192.168.64.1:1234` string itself.)
 
 ### Troubleshooting
 

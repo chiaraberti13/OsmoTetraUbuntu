@@ -3,16 +3,18 @@
 #  osmotetra — comando unico di OsmoTetra
 # ============================================================================
 #  Apri il pannello, avvia tutta la catena, oppure apri solo la finestra che
-#  ti serve. Le tre finestre sono:
+#  ti serve. Le finestre sono:
 #     1) il PANNELLO (dove imposti i parametri)
-#     2) la finestra dello SPETTRO (grafici + controlli)
-#     3) TELIVE (il monitor che decodifica)
+#     2) GNU RADIO COMPANION (lo schema a blocchi, facoltativo — solo consultazione)
+#     3) la finestra dello SPETTRO (grafici + controlli)
+#     4) TELIVE (il monitor che decodifica)
 # ============================================================================
 set -euo pipefail
 
 HOME_DIR="${OSMOTETRA_HOME:-$HOME/telive2}"
 LAUNCHER="$HOME_DIR/osmotetra_launcher.py"
 AVVIA="$HOME_DIR/avvia.sh"
+GRC_FILE="$HOME_DIR/osmotetra_rx.grc"
 PY="${OSMOTETRA_PYTHON:-python3}"
 
 usage() {
@@ -20,9 +22,10 @@ usage() {
 OsmoTetra — comandi disponibili:
 
   osmotetra                  apre il PANNELLO grafico (finestra 1) — consigliato
-  osmotetra avvia  [F] [D]   avvia TUTTO: ricevitore + spettro + telive
-  osmotetra monitor [F] [D]  avvia ricevitore + telive (SENZA spettro)
+  osmotetra grc              apre GNU Radio Companion con lo schema a blocchi
   osmotetra spettro [F] [D]  apre SOLO la finestra dello spettro (per sintonizzare)
+  osmotetra monitor [F] [D]  avvia ricevitore + telive (SENZA spettro)
+  osmotetra avvia   [F] [D]  avvia TUTTO: ricevitore + spettro + telive
   osmotetra chiavi           apre l'editor delle chiavi di decifratura
   osmotetra stop             ferma tutto
   osmotetra aiuto            mostra questo messaggio
@@ -32,8 +35,9 @@ OsmoTetra — comandi disponibili:
 
 Esempi:
   osmotetra                        # apri il pannello e premi Avvia
-  osmotetra avvia 390.5            # tutto, da terminale
+  osmotetra grc                    # guarda lo schema a blocchi in GNU Radio Companion
   osmotetra spettro 390.5          # guarda solo lo spettro
+  osmotetra avvia 390.5            # tutto, da terminale
   osmotetra chiavi                 # inserisci le chiavi senza toccare file di testo
 EOF
 }
@@ -43,6 +47,14 @@ cmd="${1:-pannello}"
 
 case "$cmd" in
   pannello|gui|"")        exec "$PY" "$LAUNCHER" ;;
+  grc|gnuradio|companion)
+      command -v gnuradio-companion >/dev/null 2>&1 || {
+        echo "[ERRORE] gnuradio-companion non è installato."
+        echo "         Esegui prima l'installazione:  ./install.sh"
+        exit 1
+      }
+      [ -f "$GRC_FILE" ] || { echo "[ERRORE] Manca: $GRC_FILE"; exit 1; }
+      exec gnuradio-companion "$GRC_FILE" ;;
   chiavi|keys|chiave)     exec "$PY" "$LAUNCHER" --keys ;;
   avvia|start|tutto)      exec "$AVVIA" --tutto "$@" ;;
   monitor|telive)         exec "$AVVIA" --monitor "$@" ;;

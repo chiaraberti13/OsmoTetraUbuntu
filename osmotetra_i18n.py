@@ -92,6 +92,18 @@ EN: dict[str, str] = {
     "Mostra la finestra dello spettro (grafici + controlli)":
         "Show the spectrum window (plots + controls)",
     "vuoto = usa la selezione qui sopra": "empty = use the selection above",
+    "Apri anche GNU Radio Companion (schema a blocchi)":
+        "Also open GNU Radio Companion (block diagram)",
+    "Apre lo schema a blocchi dello stesso flowgraph, per consultarlo o "
+    "modificarlo. È di sola consultazione: il ricevitore vero lo fa già "
+    "la parte automatica, così non c'è conflitto sulla chiavetta. Non "
+    "premere «Execute» dentro GNU Radio Companion mentre la ricezione è "
+    "già avviata.":
+        "Opens the block diagram of the same flowgraph, to look at or edit it. "
+        "It's view-only: the automated part already does the actual receiving, "
+        "so there's no conflict over the dongle. Don't press «Execute» inside "
+        "GNU Radio Companion while reception is already running.",
+    "File non trovato: {path}": "File not found: {path}",
     "Chiavetta USB (rilevamento automatico)": "USB dongle (auto-detect)",
     "Chiavetta USB — prima (rtl=0)": "USB dongle — first (rtl=0)",
     "Chiavetta USB — seconda (rtl=1)": "USB dongle — second (rtl=1)",
@@ -418,6 +430,14 @@ EN: dict[str, str] = {
     "[launcher] tap dello stato non disponibile: proseguo senza diagnostica":
         "[launcher] status tap not available: continuing without diagnostics",
     "[launcher] apro telive con: {term}": "[launcher] opening telive with: {term}",
+    "[launcher] schema GNU Radio non trovato: {path}":
+        "[launcher] GNU Radio diagram not found: {path}",
+    "[launcher] gnuradio-companion non è installato: salto la finestra dello schema.":
+        "[launcher] gnuradio-companion isn't installed: skipping the diagram window.",
+    "[launcher] apro GNU Radio Companion con lo schema a blocchi.":
+        "[launcher] opening GNU Radio Companion with the block diagram.",
+    "[launcher] impossibile aprire GNU Radio Companion: {exc}":
+        "[launcher] couldn't open GNU Radio Companion: {exc}",
     "[launcher] catena avviata. telive è nella sua finestra "
     "(ingrandiscila se serve: telive vuole 203×60).":
         "[launcher] chain started. telive is in its window "

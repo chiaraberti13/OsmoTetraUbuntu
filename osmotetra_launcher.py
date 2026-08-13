@@ -57,6 +57,10 @@ XMLRPC_PORT = 42000
 TELIVE_UDP_PORT = 7379
 #: il keyfile che tetra-rx usa (-k sample_keyfile), nella dir dei sorgenti osmo.
 KEYFILE = OSMO_SRC / "sample_keyfile"
+#: schema a blocchi (GNU Radio Companion) dello stesso flowgraph di osmotetra_rx.py:
+#: solo consultazione/modifica, non lo esegue al posto nostro (eviterebbe conflitti
+#: sulla chiavetta se qualcuno premesse Execute mentre la ricezione è già avviata).
+GRC_FILE = HERE / "osmotetra_rx.grc"
 
 #: tipi di cifratura TETRA (ksg_type) e classi di sicurezza.
 KSG_TYPES = [("TEA1", 1), ("TEA2", 2), ("TEA3", 3), ("TEA4", 4),
@@ -607,6 +611,19 @@ class Launcher(QWidget):
         self.show_spectrum = QCheckBox(_("Mostra la finestra dello spettro (grafici + controlli)"))
         self.show_spectrum.setChecked(True)
 
+        self.show_grc = QCheckBox(_("Apri anche GNU Radio Companion (schema a blocchi)"))
+        self.show_grc.setChecked(True)
+        self.show_grc.setToolTip(_(
+            "Apre lo schema a blocchi dello stesso flowgraph, per consultarlo o "
+            "modificarlo. È di sola consultazione: il ricevitore vero lo fa già "
+            "la parte automatica, così non c'è conflitto sulla chiavetta. Non "
+            "premere «Execute» dentro GNU Radio Companion mentre la ricezione è "
+            "già avviata."))
+        if not GRC_FILE.is_file():
+            self.show_grc.setChecked(False)
+            self.show_grc.setEnabled(False)
+            self.show_grc.setToolTip(_("File non trovato: {path}").format(path=GRC_FILE))
+
         # interruttore Base / Avanzata
         self.mode_combo = QComboBox()
         self.mode_combo.addItem(_("Base"), "base")
@@ -633,6 +650,7 @@ class Launcher(QWidget):
         form.addRow(_("Sorgente SDR:"), self.sdr_kind)
         form.addRow(_("Indirizzo remoto:"), self.remote_w)
         form.addRow("", self.show_spectrum)
+        form.addRow("", self.show_grc)
         self.tune_box = form_box
 
         self.start_btn = QPushButton(_("▶  Avvia"))
@@ -1054,6 +1072,7 @@ class Launcher(QWidget):
             "remote_port": self.remote_port.value(),
             "device": self.device.currentText().strip(),
             "spectrum": self.show_spectrum.isChecked(),
+            "grc": self.show_grc.isChecked(),
             "mode": self.mode_combo.currentData(),
         }
 
@@ -1067,6 +1086,8 @@ class Launcher(QWidget):
         self.remote_port.setValue(int(cfg.get("remote_port", 1234)))
         self.device.setEditText(str(cfg.get("device", "")))
         self.show_spectrum.setChecked(bool(cfg.get("spectrum", True)))
+        if self.show_grc.isEnabled():
+            self.show_grc.setChecked(bool(cfg.get("grc", True)))
         # accetta anche i profili salvati prima del passaggio a dati indipendenti
         # dalla lingua ("Avanzata"/"Base" invece di "avanzata"/"base").
         mode = str(cfg.get("mode", "base")).strip().lower()
@@ -1241,6 +1262,8 @@ class Launcher(QWidget):
                   self.sdr_kind, self.remote_ip, self.remote_port, self.mode_combo,
                   self.profile_combo):
             w.setEnabled(not running)
+        if GRC_FILE.is_file():
+            self.show_grc.setEnabled(not running)
         if running:
             self.status.setText(_("In esecuzione — guarda la finestra di telive"))
             self.status.setStyleSheet("color: white; background:#2e9e5b; padding:6px; border-radius:4px;")
@@ -1315,6 +1338,12 @@ class Launcher(QWidget):
         # OSMOTETRA_LANG si propaga al flowgraph: i suoi messaggi diagnostici
         # (visibili nel log come [rx]) restano nella stessa lingua del pannello.
         sub_env = dict(os.environ, OSMOTETRA_LANG=LANG)
+
+        # 0) GNU Radio Companion, per primo (come in origine): mostra lo schema a
+        #    blocchi già collegato. Solo consultazione: non lo eseguiamo da qui, così
+        #    non contende la chiavetta al ricevitore automatico che parte dopo.
+        if self.show_grc.isChecked():
+            self._launch_grc()
 
         # 1) flowgraph headless
         fg_cmd = [
@@ -1420,6 +1449,23 @@ class Launcher(QWidget):
                 return True
             time.sleep(0.25)
         return self._port_open(XMLRPC_PORT)
+
+    def _launch_grc(self):
+        """Apre GNU Radio Companion sullo schema a blocchi. Best-effort: se manca
+        il programma o il file, si prosegue comunque — non serve per ricevere."""
+        if not GRC_FILE.is_file():
+            self._log(_("[launcher] schema GNU Radio non trovato: {path}").format(path=GRC_FILE))
+            return
+        if shutil.which("gnuradio-companion") is None:
+            self._log(_("[launcher] gnuradio-companion non è installato: salto la finestra dello schema."))
+            return
+        try:
+            subprocess.Popen(
+                ["gnuradio-companion", str(GRC_FILE)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            self._log(_("[launcher] apro GNU Radio Companion con lo schema a blocchi."))
+        except OSError as exc:
+            self._log(_("[launcher] impossibile aprire GNU Radio Companion: {exc}").format(exc=exc))
 
     def _launch_telive(self, freq_hz: float) -> bool:
         term = self._find_terminal()

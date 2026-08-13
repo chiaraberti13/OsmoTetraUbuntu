@@ -88,7 +88,9 @@ Al termine, **riapri il terminale** (o `source ~/.bashrc`) per avere il comando
    - **Guadagno RF** = parti da `38` dB; se non ricevi, alzalo.
    - **Sorgente SDR** = lascia **«Chiavetta locale (USB)»** se la chiavetta è
      collegata direttamente al PC.
-4. Premi **Avvia**. Si aprono la **finestra dello spettro** e **`telive`**.
+4. Premi **Avvia**. Si aprono **GNU Radio Companion** (lo schema a blocchi —
+   lascialo pure in secondo piano, è solo di consultazione), la **finestra
+   dello spettro** e **`telive`**.
 5. Apri la scheda **Stato** del pannello: in pochi secondi le righe passano da
    `·` a **✓**. Quando **«Rete rilevata»** mostra `MCC 222 · MNC 55 …`, stai
    ricevendo la rete.
@@ -112,9 +114,10 @@ la finestra che ti serve:
 | Comando | Cosa fa |
 |---|---|
 | `osmotetra` | apre il **pannello** (finestra 1) — il modo consigliato |
-| `osmotetra avvia 390.5` | avvia **tutto**: ricevitore + spettro + telive |
+| `osmotetra grc` | apre **GNU Radio Companion** con lo schema a blocchi |
 | `osmotetra spettro 390.5` | apre **solo la finestra dello spettro** (per sintonizzare) |
 | `osmotetra monitor 390.5` | avvia **solo telive** (senza la finestra dello spettro) |
+| `osmotetra avvia 390.5` | avvia **tutto**: schema a blocchi + ricevitore + spettro + telive |
 | `osmotetra chiavi` | apre l'**editor delle chiavi** di decifratura |
 | `osmotetra stop` | ferma tutto |
 | `osmotetra aiuto` | mostra l'elenco dei comandi |
@@ -133,6 +136,26 @@ Dopo la frequenza puoi aggiungere il dispositivo, es.
   spunta oppure usa `osmotetra monitor …`.
 - **`telive`** *(finestra 3)* — il monitor vero e proprio, in un terminale. Si
   apre con Avvia, oppure da solo (senza spettro) con `osmotetra monitor 390.5`.
+
+### GNU Radio Companion (schema a blocchi)
+
+Oltre alle tre finestre, con **«Avvia»** (o `osmotetra avvia`) si apre anche
+**GNU Radio Companion**, il programma di GNU Radio con lo schema a blocchi —
+sorgente SDR, filtro, AGC, ricampionatore, uscita UDP — già disegnato e
+collegato, esattamente come nella versione originale. È **di sola
+consultazione**: la ricezione vera la fa già la parte automatica (il
+flowgraph headless), quindi non c'è alcun conflitto sulla chiavetta. Serve per
+vedere o modificare lo schema, capire come funziona il flusso del segnale, o
+confrontare i parametri.
+
+**Per aprirlo da solo**, senza avviare il resto: `osmotetra grc`, oppure la
+casella **«Apri anche GNU Radio Companion (schema a blocchi)»** nella scheda
+*Ricezione* del pannello controlla se si apre insieme al resto (spuntata di
+default).
+
+> ⚠ Non premere **Execute** dentro GNU Radio Companion mentre la ricezione è
+> già avviata: proverebbe ad aprire la stessa chiavetta una seconda volta.
+> Usalo per guardare lo schema, non per farlo partire in parallelo.
 
 ### La finestra dello spettro
 
@@ -314,6 +337,11 @@ lascia quella finestra aperta e, nel pannello, imposta **Sorgente SDR** =
   copia quello che compare: contiene i messaggi grezzi di flowgraph e ricevitore.
 - **Le chiamate cifrate restano mute** — normale senza le chiavi giuste: aprile
   con `osmotetra chiavi` e inserisci le tue.
+- **GNU Radio Companion non si apre** — verifica che `gnuradio-companion` sia
+  installato (`which gnuradio-companion`): fa parte del pacchetto `gnuradio`
+  che `install.sh` installa già, quindi di norma basta rilanciare
+  `./install.sh`. Se non ti serve, togli la spunta nella scheda *Ricezione*
+  oppure esporta `OSMOTETRA_NOGRC=1` prima di `avvia.sh`.
 - **La build di telive fallisce su nanohttp** — succede solo su libxml2 ≥ 2.14
   (Ubuntu 25.10); l'installer applica da solo la patch che lo risolve.
 
@@ -388,7 +416,9 @@ When it finishes, **reopen the terminal** (or `source ~/.bashrc`) so the
    - **RF gain** = start at `38` dB; if you get nothing, raise it.
    - **Sorgente SDR** = leave **“Chiavetta locale (USB)”** if the dongle is
      plugged straight into the PC.
-4. Press **Start**. The **spectrum window** and **`telive`** open.
+4. Press **Start**. **GNU Radio Companion** (the block diagram — feel free to
+   leave it in the background, it's view-only), the **spectrum window** and
+   **`telive`** open.
 5. Open the **Stato** (Status) tab in the panel: within seconds the rows go from
    `·` to **✓**. When **“Rete rilevata”** (network detected) shows
    `MCC 222 · MNC 55 …`, you are receiving the network.
@@ -412,9 +442,10 @@ the window you need:
 | Command | What it does |
 |---|---|
 | `osmotetra` | opens the **panel** (window 1) — recommended |
-| `osmotetra avvia 390.5` | starts **everything**: receiver + spectrum + telive |
+| `osmotetra grc` | opens **GNU Radio Companion** with the block diagram |
 | `osmotetra spettro 390.5` | opens **only the spectrum window** (to tune) |
 | `osmotetra monitor 390.5` | starts **only telive** (without the spectrum window) |
+| `osmotetra avvia 390.5` | starts **everything**: block diagram + receiver + spectrum + telive |
 | `osmotetra chiavi` | opens the **key editor** for decryption |
 | `osmotetra stop` | stops everything |
 | `osmotetra aiuto` | shows the list of commands |
@@ -433,6 +464,25 @@ After the frequency you can add the device, e.g.
   `osmotetra monitor …`.
 - **`telive`** *(window 3)* — the actual monitor, in a terminal. Opens with
   Start, or on its own (no spectrum) with `osmotetra monitor 390.5`.
+
+### GNU Radio Companion (block diagram)
+
+Besides the three windows, pressing **“Avvia”** (or `osmotetra avvia`) also
+opens **GNU Radio Companion**, GNU Radio's own program showing the block
+diagram — SDR source, filter, AGC, resampler, UDP output — already drawn and
+wired, exactly like the original version. It's **view-only**: actual
+reception is already handled by the automated part (the headless flowgraph),
+so there's no conflict over the dongle. Use it to look at or edit the
+diagram, understand how the signal flow works, or compare parameters.
+
+**To open it on its own**, without starting the rest: `osmotetra grc`, or the
+**“Apri anche GNU Radio Companion (schema a blocchi)”** (also open GNU Radio
+Companion) box in the panel's *Ricezione* tab controls whether it opens along
+with everything else (ticked by default).
+
+> ⚠ Don't press **Execute** inside GNU Radio Companion while reception is
+> already running: it would try to open the same dongle a second time. Use it
+> to look at the diagram, not to run it in parallel.
 
 ### The spectrum window
 
@@ -612,6 +662,11 @@ remota (rete / VM)”**, then type the **host IP** (e.g. `192.168.64.1`) and the
   copy what appears: it holds the raw flowgraph and receiver messages.
 - **Encrypted calls stay silent** — normal without the right keys: open them with
   `osmotetra chiavi` and enter yours.
+- **GNU Radio Companion doesn't open** — check that `gnuradio-companion` is
+  installed (`which gnuradio-companion`): it's part of the `gnuradio` package
+  that `install.sh` already installs, so usually just re-running
+  `./install.sh` fixes it. If you don't need it, untick the box in the
+  *Ricezione* tab or export `OSMOTETRA_NOGRC=1` before `avvia.sh`.
 - **telive build fails on nanohttp** — only on libxml2 ≥ 2.14 (Ubuntu 25.10); the
   installer applies the fix automatically.
 
@@ -630,6 +685,8 @@ All logs are in `~/telive2/logs/`.
 
 - **Jacek Lipkowski SQ5BPF** — [osmo-tetra-sq5bpf-2](https://github.com/sq5bpf/osmo-tetra-sq5bpf-2)
   e [telive-2](https://github.com/sq5bpf/telive-2), la catena di ricezione e decodifica.
+  `osmotetra_rx.grc` (lo schema in GNU Radio Companion) è il file originale
+  dell'autore, incluso invariato da telive-2.
 - Progetto originale osmo-tetra di **Harald Welte** e collaboratori.
 - Codec vocale **ETSI** EN 300 395-2.
 

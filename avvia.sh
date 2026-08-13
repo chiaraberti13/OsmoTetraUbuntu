@@ -21,6 +21,7 @@
 #     OSMOTETRA_GAIN   guadagno RF in dB (default: 38)
 #     OSMOTETRA_PPM    correzione in ppm (default: 0)
 #     OSMOTETRA_NOGUI  se valorizzata, non apre mai la finestra dello spettro
+#     OSMOTETRA_NOGRC  se valorizzata, non apre mai GNU Radio Companion
 #     OSMOTETRA_PYTHON interprete con GNU Radio (default: python3)
 # ============================================================================
 set -euo pipefail
@@ -45,6 +46,7 @@ HOME_DIR="${OSMOTETRA_HOME:-$HOME/telive2}"
 OSMO_SRC="$HOME_DIR/osmo-tetra-sq5bpf-2/src"
 TELIVE_DIR="$HOME_DIR/telive-2"
 FLOWGRAPH="$HERE/osmotetra_rx.py"
+GRC_FILE="$HERE/osmotetra_rx.grc"
 
 LOG_DIR="$HOME_DIR/logs"
 mkdir -p "$LOG_DIR"
@@ -98,6 +100,17 @@ cleanup() {
   pkill -x tetra-rx 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
+
+# --- 0) GNU Radio Companion, per primo (come in origine): mostra lo schema a
+#        blocchi già collegato. Solo consultazione: non lo eseguiamo da qui,
+#        così non contende la chiavetta al ricevitore che parte dopo. --------
+if [ "$MODE" = "tutto" ] && [ -n "${DISPLAY:-}" ] && [ -z "${OSMOTETRA_NOGRC:-}" ]; then
+  if [ -f "$GRC_FILE" ] && command -v gnuradio-companion >/dev/null 2>&1; then
+    echo "[avvia] apro GNU Radio Companion con lo schema a blocchi"
+    setsid gnuradio-companion "$GRC_FILE" >/dev/null 2>&1 &
+    disown
+  fi
+fi
 
 # --- 1) flowgraph (in sottofondo) -------------------------------------------
 echo "[avvia] flowgraph: canale ${FREQ_MHZ} MHz, guadagno ${GAIN} dB, dispositivo '${DEVICE_ARGS:-auto}'${GUI_FLAG:+ (con spettro)}"

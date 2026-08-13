@@ -230,6 +230,7 @@ step "7) Lanciatore grafico e voce di menu"
 install -m 0755 "$HERE/osmotetra_rx.py"       "$OSMOTETRA_HOME/osmotetra_rx.py"
 install -m 0755 "$HERE/osmotetra_launcher.py" "$OSMOTETRA_HOME/osmotetra_launcher.py"
 install -m 0644 "$HERE/osmotetra_i18n.py"     "$OSMOTETRA_HOME/osmotetra_i18n.py"
+install -m 0644 "$HERE/osmotetra_rx.grc"      "$OSMOTETRA_HOME/osmotetra_rx.grc"
 install -m 0755 "$HERE/avvia.sh"              "$OSMOTETRA_HOME/avvia.sh"
 install -m 0755 "$HERE/osmotetra"             "$OSMOTETRA_HOME/osmotetra"
 
@@ -270,9 +271,10 @@ Tutto è in:  $OSMOTETRA_HOME
 
 COME USARLO — un solo comando, 'osmotetra':
    osmotetra                apre il PANNELLO (menu «OsmoTetra» o questo comando)
-   osmotetra avvia 390.5    avvia tutto da terminale (spettro + telive)
+   osmotetra grc            apre GNU Radio Companion con lo schema a blocchi
    osmotetra spettro 390.5  apre solo la finestra dello spettro
    osmotetra monitor 390.5  avvia solo telive (senza spettro)
+   osmotetra avvia 390.5    avvia tutto da terminale (spettro + telive)
    osmotetra chiavi         inserisci le chiavi di decifratura (interfaccia)
    osmotetra stop           ferma tutto        osmotetra aiuto   la guida
 

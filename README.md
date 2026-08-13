@@ -168,6 +168,16 @@ sempre in vista; il resto è diviso in schede, così ogni cosa sta al suo posto.
 La scheda **Avanzate** compare solo in **modalità Avanzata**: in **Base** sparisce
 del tutto, così hai davanti solo quello che serve davvero per ascoltare.
 
+**Lingua del pannello.** Accanto a **Modalità** c'è il selettore **Lingua**:
+**Italiano** / **English**. Cambiandolo l'applicazione si riavvia da sola per
+applicarlo (se la ricezione è in corso, viene fermata prima); la scelta resta
+salvata per le volte successive in `~/.config/osmotetra/impostazioni.json`.
+Puoi anche impostarla da terminale una volta per tutte con
+`export OSMOTETRA_LANG=en` prima di lanciare `osmotetra` (questa variabile
+vince sempre sul file salvato). Anche i messaggi diagnostici del flowgraph
+(quelli con tag `[rx]` nel log) seguono la lingua scelta; gli script da riga
+di comando (`avvia.sh`, `osmotetra --help`) restano solo in italiano.
+
 **Profili.** Nella scheda *Ricezione* puoi salvare le impostazioni con un nome
 (**«Salva come…»**) e ritrovarle dall'elenco: comodo se segui più reti o più
 antenne. I profili stanno in `~/.config/osmotetra/profili.json` e **non
@@ -458,6 +468,16 @@ thing has its place.
 
 The **Avanzate** tab only shows up in **Advanced** mode: in **Base** it
 disappears entirely, leaving just what you actually need in order to listen.
+
+**Panel language.** Next to **Modalità** (mode) there's the **Lingua**
+(language) selector: **Italiano** / **English**. Switching it restarts the
+application on its own to apply it (if reception is running, it's stopped
+first); the choice is saved for next time in
+`~/.config/osmotetra/impostazioni.json`. You can also set it once from a
+terminal with `export OSMOTETRA_LANG=en` before launching `osmotetra` (this
+variable always wins over the saved file). The flowgraph's diagnostic
+messages (the ones tagged `[rx]` in the log) follow the chosen language too;
+the command-line scripts (`avvia.sh`, `osmotetra --help`) stay Italian-only.
 
 **Profiles.** In the *Ricezione* tab you can save the settings under a name
 (**“Salva come…”**) and pick them back from the list: handy if you follow several

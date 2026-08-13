@@ -229,6 +229,7 @@ fi
 step "7) Lanciatore grafico e voce di menu"
 install -m 0755 "$HERE/osmotetra_rx.py"       "$OSMOTETRA_HOME/osmotetra_rx.py"
 install -m 0755 "$HERE/osmotetra_launcher.py" "$OSMOTETRA_HOME/osmotetra_launcher.py"
+install -m 0644 "$HERE/osmotetra_i18n.py"     "$OSMOTETRA_HOME/osmotetra_i18n.py"
 install -m 0755 "$HERE/avvia.sh"              "$OSMOTETRA_HOME/avvia.sh"
 install -m 0755 "$HERE/osmotetra"             "$OSMOTETRA_HOME/osmotetra"
 

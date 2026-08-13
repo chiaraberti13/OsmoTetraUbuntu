@@ -33,6 +33,8 @@ from xmlrpc.server import SimpleXMLRPCServer
 from gnuradio import analog, blocks, filter, gr, network
 from gnuradio.filter import firdes
 
+from osmotetra_i18n import _
+
 try:
     import osmosdr
 except ImportError:  # pragma: no cover - dipende dall'ambiente
@@ -368,24 +370,25 @@ def _no_device_message(device_args: str, exc: Exception) -> str:
         for token in args.split():
             if token.startswith("rtl_tcp="):
                 endpoint = token[len("rtl_tcp="):]
-        return (
-            f"[osmotetra_rx] Nessun ricevitore rtl_tcp su {endpoint or '(indirizzo mancante)'}.\n"
-            f"  Il server rtl_tcp non risponde. Sulla macchina a cui è collegata\n"
-            f"  la chiavetta avvia:  rtl_tcp -a 0.0.0.0 -p 1234\n"
-            f"  e lascia quella finestra aperta; verifica host e porta.\n"
-            f"  (dettaglio gr-osmosdr: {exc})")
-    where = args or "auto (nessun dispositivo indicato)"
-    return (
-        f"[osmotetra_rx] Nessun dispositivo SDR trovato (richiesto: {where}).\n"
-        f"  • Se la chiavetta è collegata direttamente: controlla con\n"
-        f"      rtl_test -t\n"
-        f"    'usb_claim_interface error -6' = driver DVB-T ancora caricato\n"
-        f"    (scollega/ricollega o riavvia); se serve, fai logout/login per il\n"
-        f"    gruppo plugdev.\n"
-        f"  • In una macchina virtuale l'USB potrebbe non essere inoltrato:\n"
-        f"    lascia la chiavetta al sistema ospitante ed esponila con rtl_tcp\n"
-        f"    (dispositivo 'rtl_tcp=INDIRIZZO:1234'). Vedi il README.\n"
-        f"  (dettaglio gr-osmosdr: {exc})")
+        return _(
+            "[osmotetra_rx] Nessun ricevitore rtl_tcp su {endpoint}.\n"
+            "  Il server rtl_tcp non risponde. Sulla macchina a cui è collegata\n"
+            "  la chiavetta avvia:  rtl_tcp -a 0.0.0.0 -p 1234\n"
+            "  e lascia quella finestra aperta; verifica host e porta.\n"
+            "  (dettaglio gr-osmosdr: {exc})").format(
+                endpoint=endpoint or _("(indirizzo mancante)"), exc=exc)
+    where = args or _("auto (nessun dispositivo indicato)")
+    return _(
+        "[osmotetra_rx] Nessun dispositivo SDR trovato (richiesto: {where}).\n"
+        "  • Se la chiavetta è collegata direttamente: controlla con\n"
+        "      rtl_test -t\n"
+        "    'usb_claim_interface error -6' = driver DVB-T ancora caricato\n"
+        "    (scollega/ricollega o riavvia); se serve, fai logout/login per il\n"
+        "    gruppo plugdev.\n"
+        "  • In una macchina virtuale l'USB potrebbe non essere inoltrato:\n"
+        "    lascia la chiavetta al sistema ospitante ed esponila con rtl_tcp\n"
+        "    (dispositivo 'rtl_tcp=INDIRIZZO:1234'). Vedi il README.\n"
+        "  (dettaglio gr-osmosdr: {exc})").format(where=where, exc=exc)
 
 
 # -- riga di comando -------------------------------------------------------
@@ -443,11 +446,14 @@ def _build_tb(opts, gui):
 
 def _announce(opts):
     print(
-        f"[osmotetra_rx] canale {opts.freq / 1e6:.4f} MHz "
-        f"(SDR a {(opts.freq - XLATE_OFFSET) / 1e6:.4f} MHz, offset anti-DC "
-        f"{XLATE_OFFSET / 1e3:.0f} kHz), {opts.samp_rate / 1e6:.3f} Ms/s, "
-        f"XMLRPC su 0.0.0.0:{opts.port}, UDP su {opts.udp_host}:{opts.port + 1}"
-        + ("  [finestra spettro attiva]" if opts.gui else ""),
+        _("[osmotetra_rx] canale {freq:.4f} MHz "
+          "(SDR a {sdr_freq:.4f} MHz, offset anti-DC "
+          "{offset:.0f} kHz), {samp_rate:.3f} Ms/s, "
+          "XMLRPC su 0.0.0.0:{port}, UDP su {host}:{data_port}").format(
+              freq=opts.freq / 1e6, sdr_freq=(opts.freq - XLATE_OFFSET) / 1e6,
+              offset=XLATE_OFFSET / 1e3, samp_rate=opts.samp_rate / 1e6,
+              port=opts.port, host=opts.udp_host, data_port=opts.port + 1)
+        + (_("  [finestra spettro attiva]") if opts.gui else ""),
         flush=True)
 
 
@@ -483,7 +489,7 @@ def main(argv=None):
         if stopping.is_set():
             return
         stopping.set()
-        print("[osmotetra_rx] arresto in corso...", flush=True)
+        print(_("[osmotetra_rx] arresto in corso..."), flush=True)
         tb.stop()
 
     signal.signal(signal.SIGINT, handle_signal)

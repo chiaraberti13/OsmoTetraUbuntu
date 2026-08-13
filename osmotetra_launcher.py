@@ -1213,16 +1213,24 @@ class Launcher(QWidget):
     # -- log a due livelli -------------------------------------------------
 
     #: parole che rendono «importante» anche una riga grezza di flowgraph/decoder
-    LOG_ALERTS = ("error", "errore", "traceback", "fail", "not found", "no devices",
-                  "permission denied", "cannot", "impossibile")
+    #: (in inglese: sono i messaggi di libreria — tetra-rx, gr-osmosdr, python — non
+    #: i nostri, che si riconoscono invece dal tag [osmotetra_rx] qui sotto)
+    LOG_ALERTS = ("error", "traceback", "fail", "not found", "no devices",
+                  "permission denied", "cannot")
+    #: rumore noto e innocuo che NON deve passare, pur contenendo parole d'allarme
+    #: (RtAudio sonda le periferiche audio ad ogni avvio: non c'entra con l'SDR)
+    LOG_BENIGN = ("rtapi::getdeviceinfo",)
 
     @classmethod
     def _log_important(cls, text: str) -> bool:
         """Vero per le righe che vale la pena mostrare anche a log semplice:
-        i nostri messaggi [launcher] e qualunque riga che segnali un guaio."""
-        if text.startswith("[launcher]"):
+        i nostri messaggi [launcher] e [osmotetra_rx] (già scritti per l'utente,
+        in italiano) e qualunque riga grezza che segnali un guaio."""
+        if text.startswith("[launcher]") or "[osmotetra_rx]" in text:
             return True
         low = text.lower()
+        if any(word in low for word in cls.LOG_BENIGN):
+            return False
         return any(word in low for word in cls.LOG_ALERTS)
 
     def _append_log(self, text: str):

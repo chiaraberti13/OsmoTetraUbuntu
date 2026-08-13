@@ -143,7 +143,8 @@ sudo apt-get install -y \
   libosmocore-dev libncurses-dev libxml2-dev \
   librtlsdr-dev rtl-sdr libusb-1.0-0-dev \
   socat alsa-utils sox vorbis-tools \
-  gnuradio gr-osmosdr python3-pyqt5
+  gnuradio gr-osmosdr python3-pyqt5 \
+  fonts-noto-color-emoji
 info "Dipendenze installate."
 COMPAT_CFLAGS="$(detect_compat_cflags)"
 [ -n "$COMPAT_CFLAGS" ] && info "Flag compat compilatore: $COMPAT_CFLAGS"

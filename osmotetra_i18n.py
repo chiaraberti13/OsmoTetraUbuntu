@@ -131,7 +131,7 @@ EN: dict[str, str] = {
     # -- pulsanti principali ----------------------------------------------
     "▶  Avvia": "▶  Start",
     "■  Ferma": "■  Stop",
-    "🔑  Chiavi di decifratura…": "🔑  Decryption keys…",
+    "◆  Chiavi di decifratura…": "◆  Decryption keys…",
     "Fermo": "Stopped",
     "Avvio in corso…": "Starting…",
     "In esecuzione — guarda la finestra di telive": "Running — watch the telive window",
@@ -242,7 +242,7 @@ EN: dict[str, str] = {
     "Cifratura": "Encryption",
     "Ultimo aggiornamento": "Last update",
     "Quando è arrivato l'ultimo messaggio di rete.": "When the last network message arrived.",
-    "📋  Copia dettagli rete": "📋  Copy network details",
+    "▸  Copia dettagli rete": "▸  Copy network details",
     "Copia i dati qui sopra negli appunti, come testo.": "Copies the data above to the clipboard, as text.",
     "I dati arrivano dai messaggi di rete della cella e compaiono solo "
     "quando la ricezione è agganciata.":
@@ -254,7 +254,7 @@ EN: dict[str, str] = {
 
     # -- scheda Chiavi ---------------------------------------------------
     "Chiavi di decifratura": "Decryption keys",
-    "🔑  Apri l'editor delle chiavi…": "🔑  Open the key editor…",
+    "◆  Apri l'editor delle chiavi…": "◆  Open the key editor…",
     "File: {path}": "File: {path}",
     "⚠ La decifratura funziona <b>solo con chiavi che possiedi "
     "legittimamente</b> e non rompe alcuna cifratura. Via etere TETRA "
@@ -285,7 +285,7 @@ EN: dict[str, str] = {
         "Off: only the messages meant for you.\n"
         "On: also the raw output of flowgraph and receiver, "
         "handy to attach when you ask for help.",
-    "💾  Esporta diagnostica…": "💾  Export diagnostics…",
+    "▪  Esporta diagnostica…": "▪  Export diagnostics…",
     "Salva un file di testo con versioni, impostazioni, "
     "stato e log — senza alcuna chiave.":
         "Saves a text file with versions, settings, status and log — without any keys.",
@@ -357,9 +357,9 @@ EN: dict[str, str] = {
         "digits (80 bit). The <b>key</b> is hex: 20 digits = 80 bit.",
     "Chiavi": "Keys",
     "20 cifre esadecimali": "20 hex digits",
-    "🔎  Mostra file generato": "🔎  Show generated file",
+    "▸  Mostra file generato": "▸  Show generated file",
     "Ricarica dal file": "Reload from file",
-    "💾  Salva": "💾  Save",
+    "▪  Salva": "▪  Save",
     "Chiudi": "Close",
     "File generato — anteprima": "Generated file — preview",
     "Questo è ciò che l'editor scriverà nel keyfile:":

@@ -351,9 +351,9 @@ class KeyEditor(QDialog):
         kb.addWidget(keyhint)
 
         # --- pulsanti ---
-        gen_btn = QPushButton(_("🔎  Mostra file generato")); gen_btn.clicked.connect(self.show_generated)
+        gen_btn = QPushButton(_("▸  Mostra file generato")); gen_btn.clicked.connect(self.show_generated)
         load_btn = QPushButton(_("Ricarica dal file")); load_btn.clicked.connect(self.load)
-        save_btn = QPushButton(_("💾  Salva")); save_btn.clicked.connect(self.save)
+        save_btn = QPushButton(_("▪  Salva")); save_btn.clicked.connect(self.save)
         close_btn = QPushButton(_("Chiudi")); close_btn.clicked.connect(self.close)
         btns = QHBoxLayout()
         btns.addWidget(gen_btn); btns.addStretch(1)
@@ -657,7 +657,7 @@ class Launcher(QWidget):
         self.start_btn.clicked.connect(self.on_start)
         self.stop_btn = QPushButton(_("■  Ferma"))
         self.stop_btn.clicked.connect(self.on_stop)
-        self.keys_btn = QPushButton(_("🔑  Chiavi di decifratura…"))
+        self.keys_btn = QPushButton(_("◆  Chiavi di decifratura…"))
         self.keys_btn.clicked.connect(self.open_keys)
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.start_btn)
@@ -764,7 +764,7 @@ class Launcher(QWidget):
             self._net_fields[key] = value
         v.addWidget(box)
 
-        copy_btn = QPushButton(_("📋  Copia dettagli rete"))
+        copy_btn = QPushButton(_("▸  Copia dettagli rete"))
         copy_btn.setToolTip(_("Copia i dati qui sopra negli appunti, come testo."))
         copy_btn.clicked.connect(self._copy_network)
         row = QHBoxLayout(); row.addWidget(copy_btn); row.addStretch(1)
@@ -783,7 +783,7 @@ class Launcher(QWidget):
         self.keys_summary = QLabel("—")
         self.keys_summary.setWordWrap(True)
         b.addWidget(self.keys_summary)
-        open_btn = QPushButton(_("🔑  Apri l'editor delle chiavi…"))
+        open_btn = QPushButton(_("◆  Apri l'editor delle chiavi…"))
         open_btn.clicked.connect(self.open_keys)
         b.addWidget(open_btn)
         b.addWidget(self._muted(_("File: {path}").format(path=KEYFILE)))
@@ -811,7 +811,7 @@ class Launcher(QWidget):
             "Acceso: anche l'output grezzo di flowgraph e ricevitore, "
             "utile da allegare quando chiedi aiuto."))
         self.log_tech.toggled.connect(self._rerender_log)
-        diag_btn = QPushButton(_("💾  Esporta diagnostica…"))
+        diag_btn = QPushButton(_("▪  Esporta diagnostica…"))
         diag_btn.setToolTip(_("Salva un file di testo con versioni, impostazioni, "
                               "stato e log — senza alcuna chiave."))
         diag_btn.clicked.connect(self._export_diagnostics)

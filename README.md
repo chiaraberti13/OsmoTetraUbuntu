@@ -206,7 +206,7 @@ di comando (`avvia.sh`, `osmotetra --help`) restano solo in italiano.
 antenne. I profili stanno in `~/.config/osmotetra/profili.json` e **non
 contengono mai chiavi**.
 
-**Copia dettagli rete.** Nella scheda *Rete*, il pulsante **«📋 Copia dettagli
+**Copia dettagli rete.** Nella scheda *Rete*, il pulsante **«▸ Copia dettagli
 rete»** mette negli appunti un riassunto in testo semplice (MCC, MNC, codice
 colore, area, frequenza, cifratura), pronto da incollare nei tuoi appunti.
 
@@ -242,7 +242,7 @@ per vedere anche l'output grezzo di flowgraph e ricevitore: è quello da copiare
 quando chiedi aiuto. Puoi accendere e spegnere la spunta quando vuoi, senza
 perdere nulla di quello che è già passato.
 
-**Esporta diagnostica.** Sempre nella scheda *Log*, il pulsante **«💾 Esporta
+**Esporta diagnostica.** Sempre nella scheda *Log*, il pulsante **«▪ Esporta
 diagnostica…»** salva un file di testo con versioni del sistema, impostazioni,
 componenti installati, stato, dati della rete e le ultime righe di log. È fatto
 per essere allegato quando chiedi aiuto: **non contiene alcuna chiave** — del
@@ -255,7 +255,7 @@ all'avvio, quindi la ripulitura è indispensabile).
 Per decifrare le chiamate serve una **chiave che già possiedi**. Non devi più
 modificare a mano il file di testo: c'è un editor grafico.
 
-**Come aprirlo:** premi il pulsante **«🔑 Chiavi di decifratura…»** nel pannello,
+**Come aprirlo:** premi il pulsante **«◆ Chiavi di decifratura…»** nel pannello,
 oppure da terminale `osmotetra chiavi`.
 
 **Come si usa** (parte in **modalità guidata**: vedi solo l'essenziale):
@@ -278,9 +278,9 @@ oppure da terminale `osmotetra chiavi`.
      È mascherata; spunta **«Mostra chiavi»** per vederla.
    - I campi tecnici (`addr`, `key_num`, MCC/MNC per singola chiave) sono nascosti:
      compaiono spuntando **«Parametri avanzati ▼»**.
-3. (Facoltativo) **«🔎 Mostra file generato»** ti fa vedere esattamente cosa
+3. (Facoltativo) **«▸ Mostra file generato»** ti fa vedere esattamente cosa
    scriverà l'editor (`network …` / `key …`): utile per imparare il formato.
-4. Premi **💾 Salva**. Ti mostra un riepilogo (rete, algoritmo, numero di chiavi,
+4. Premi **▪ Salva**. Ti mostra un riepilogo (rete, algoritmo, numero di chiavi,
    file), poi scrive il keyfile con permessi riservati al tuo utente (`0600`).
 5. **Avvia (o riavvia)** la ricezione: adesso le chiamate cifrate con quelle
    chiavi vengono decifrate.
@@ -534,7 +534,7 @@ the command-line scripts (`avvia.sh`, `osmotetra --help`) stay Italian-only.
 networks or antennas. Profiles live in `~/.config/osmotetra/profili.json` and
 **never contain keys**.
 
-**Copy network details.** In the *Rete* tab, the **“📋 Copia dettagli rete”**
+**Copy network details.** In the *Rete* tab, the **“▸ Copia dettagli rete”**
 button puts a plain-text summary on the clipboard (MCC, MNC, colour code, area,
 frequency, encryption), ready to paste into your notes.
 
@@ -569,7 +569,7 @@ log) to also see the raw output of the flowgraph and the receiver: that is what
 to copy when asking for help. You can tick and untick it at any time without
 losing anything that already scrolled by.
 
-**Export diagnostics.** Still in the *Log* tab, the **“💾 Esporta diagnostica…”**
+**Export diagnostics.** Still in the *Log* tab, the **“▪ Esporta diagnostica…”**
 button saves a text file with system versions, settings, installed components,
 status, network data and the last log lines. It is meant to be attached when you
 ask for help: it **contains no keys** — of the keyfile it only reports *how many*
@@ -581,7 +581,7 @@ keys there are and for which network, and key material is stripped out of the lo
 To decrypt calls you need a **key you already own**. You no longer edit the text
 file by hand: there is a graphical editor.
 
-**How to open it:** press the **“🔑 Chiavi di decifratura…”** button in the panel,
+**How to open it:** press the **“◆ Chiavi di decifratura…”** button in the panel,
 or from a terminal `osmotetra chiavi`.
 
 **How to use it** (it starts in **guided mode**: you only see the essentials):
@@ -604,9 +604,9 @@ or from a terminal `osmotetra chiavi`.
      masked; tick **“Mostra chiavi”** to reveal it.
    - The technical fields (`addr`, `key_num`, per-key MCC/MNC) are hidden: they
      appear when you tick **“Parametri avanzati ▼”**.
-3. (Optional) **“🔎 Mostra file generato”** shows exactly what the editor will
+3. (Optional) **“▸ Mostra file generato”** shows exactly what the editor will
    write (`network …` / `key …`): handy to learn the format.
-4. Press **💾 Salva** (Save). It shows a summary (network, algorithm, number of
+4. Press **▪ Salva** (Save). It shows a summary (network, algorithm, number of
    keys, file), then writes the keyfile with owner-only permissions (`0600`).
 5. **Start (or restart)** reception: calls encrypted with those keys are now
    decrypted.

@@ -1,73 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320"
-     font-family="'Segoe UI', 'DejaVu Sans', 'Helvetica Neue', Arial, sans-serif"
-     role="img" aria-label="OsmoTetra - monitoraggio TETRA su Ubuntu con osmo-tetra-sq5bpf e telive">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-label="OsmoTetra — One-command TETRA receiver and analysis environment for Ubuntu">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0"    stop-color="#0f2440"/>
-      <stop offset="0.55" stop-color="#1a365d"/>
-      <stop offset="1"    stop-color="#2b6cb0"/>
+      <stop offset="0" stop-color="#0B1117"/>
+      <stop offset="1" stop-color="#111827"/>
     </linearGradient>
-    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#7fd1a6"/>
-      <stop offset="1" stop-color="#7fd1a6" stop-opacity="0"/>
-    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#22D3EE" stroke-opacity=".055"/>
+    </pattern>
   </defs>
-
-  <rect x="0" y="0" width="1200" height="320" rx="18" fill="url(#bg)"/>
-
-  <!-- Antenna con onde radio in uscita -->
-  <g transform="translate(150 160)">
-    <g fill="none" stroke="#7fd1a6" stroke-linecap="round">
-      <path d="M 0,-40 A 40 40 0 0 1 0,40"   stroke-width="4"   opacity="0.95"/>
-      <path d="M 0,-70 A 70 70 0 0 1 0,70"   stroke-width="3.5" opacity="0.62"/>
-      <path d="M 0,-100 A 100 100 0 0 1 0,100" stroke-width="3" opacity="0.38"/>
-      <path d="M 0,-130 A 130 130 0 0 1 0,130" stroke-width="2.5" opacity="0.20"/>
-    </g>
-    <g stroke="#f7fafc" stroke-width="5" stroke-linecap="round">
-      <line x1="0" y1="-92" x2="0" y2="78"/>
-      <line x1="-34" y1="102" x2="34" y2="102"/>
-      <line x1="0" y1="78" x2="-26" y2="102"/>
-      <line x1="0" y1="78" x2="26" y2="102"/>
-    </g>
-    <circle cx="0" cy="-92" r="9" fill="#f6ad55"/>
-  </g>
-
-  <!-- Titolo e sottotitolo -->
-  <text x="330" y="132" fill="#f7fafc" font-size="76" font-weight="700"
-        letter-spacing="-1">OsmoTetra</text>
-  <rect x="332" y="152" width="300" height="3" rx="1.5" fill="url(#rule)"/>
-  <text x="332" y="192" fill="#bcd7f2" font-size="24">
-    TETRA monitoring on Ubuntu 24.04+ with an RTL-SDR dongle
-  </text>
-  <text x="332" y="224" fill="#8fb4d9" font-size="21">
-    Monitoraggio TETRA su Ubuntu 24.04+ con una chiavetta RTL-SDR
-  </text>
-
-  <!-- I quattro stadi della catena, come pastiglie -->
-  <g font-size="17" font-weight="600">
-    <g transform="translate(332 254)">
-      <rect x="0" y="0" width="128" height="34" rx="17" fill="#ffffff" fill-opacity="0.10"
-            stroke="#7fd1a6" stroke-opacity="0.55"/>
-      <text x="64" y="23" fill="#c9ead9" text-anchor="middle">GNU Radio</text>
-    </g>
-    <g transform="translate(474 254)">
-      <rect x="0" y="0" width="128" height="34" rx="17" fill="#ffffff" fill-opacity="0.10"
-            stroke="#7fd1a6" stroke-opacity="0.55"/>
-      <text x="64" y="23" fill="#c9ead9" text-anchor="middle">tetra-rx</text>
-    </g>
-    <g transform="translate(616 254)">
-      <rect x="0" y="0" width="128" height="34" rx="17" fill="#ffffff" fill-opacity="0.10"
-            stroke="#7fd1a6" stroke-opacity="0.55"/>
-      <text x="64" y="23" fill="#c9ead9" text-anchor="middle">telive</text>
-    </g>
-    <g fill="#7fd1a6" fill-opacity="0.75" font-size="20">
-      <text x="464" y="277" text-anchor="middle">›</text>
-      <text x="606" y="277" text-anchor="middle">›</text>
-    </g>
-  </g>
-
-  <!-- Crediti in piccolo, in basso a destra -->
-  <text x="1152" y="288" fill="#7fa3cc" font-size="16" text-anchor="end">
-    osmo-tetra-sq5bpf + telive · SQ5BPF
-  </text>
+  <rect width="1280" height="320" rx="22" fill="url(#bg)"/>
+  <rect width="1280" height="320" rx="22" fill="url(#grid)"/>
+  <rect x="0" y="0" width="10" height="320" rx="5" fill="#F2C94C"/>
+  <rect x="72" y="48" width="185" height="36" rx="18" fill="#152431" stroke="#22D3EE" stroke-opacity=".72"/>
+  <text x="94" y="72" fill="#22D3EE" font-family="JetBrains Mono, ui-monospace, monospace" font-size="16" font-weight="700" letter-spacing="1.5">SDR &amp; RADIO</text>
+  <text x="72" y="158" fill="#E6EDF3" font-family="Inter, Arial, sans-serif" font-size="54" font-weight="750">OsmoTetra</text>
+  <text x="72" y="207" fill="#AAB7C4" font-family="Inter, Arial, sans-serif" font-size="22">One-command TETRA receiver and analysis environment for Ubuntu</text>
+  <circle cx="80" cy="265" r="6" fill="#F2C94C"/>
+  <text x="98" y="271" fill="#E6EDF3" font-family="JetBrains Mono, ui-monospace, monospace" font-size="17">@chiaraberti13</text>
+  <rect x="1030" y="246" width="178" height="36" rx="18" fill="#18222D" stroke="#F2C94C" stroke-opacity=".75"/>
+  <text x="1119" y="270" text-anchor="middle" fill="#F2C94C" font-family="JetBrains Mono, ui-monospace, monospace" font-size="14" font-weight="700">ACTIVE</text>
 </svg>

@@ -31,7 +31,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Consulta il [complete guide](docs/manual.en.md) per requisiti, comandi, legenda dell’interfaccia e troubleshooting.
+See the [complete guide](docs/manual.en.md) for requirements, commands, the interface legend and troubleshooting.
 
 ## Responsible use
 

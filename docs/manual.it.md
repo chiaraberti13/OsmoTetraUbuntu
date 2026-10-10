@@ -575,6 +575,14 @@ L'app costruisce da sola la stringa tecnica necessaria
 - **La build di telive fallisce su nanohttp** — succede solo su libxml2 ≥
   2.14 (Ubuntu 25.10 e successive); l'installer applica da solo la patch che
   lo risolve, non serve intervenire a mano.
+- **`telive: error while loading shared libraries: libxml2.so.2`** — compare
+  dopo un upgrade di Ubuntu (es. a 25.10/26.04), dove libxml2 ha cambiato la
+  SONAME in `libxml2.so.16`. Un vecchio binario `telive` punta ancora alla
+  `libxml2.so.2` sparita. Basta rilanciare `./install.sh`: ora ricompila
+  telive da zero così si linka alla libreria attuale.
+- **Avvisi Qt `QSocketNotifier…QThread` e `Wayland does not support
+  QWindow::requestActivate()`** — messaggi innocui di PyQt su Wayland: il
+  pannello funziona normalmente, puoi ignorarli.
 - **Devi chiedere aiuto?** Nel pannello, scheda **Log**, spunta **«Log
   tecnico (mostra tutto)»** e copia quello che compare, oppure usa **«▪
   Esporta diagnostica…»** per un file completo pronto da allegare (non

@@ -543,6 +543,14 @@ The app builds the technical string itself
 - **telive build fails on nanohttp** — only happens on libxml2 ≥ 2.14
   (Ubuntu 25.10 and newer); the installer applies the fix automatically, no
   manual action needed.
+- **`telive: error while loading shared libraries: libxml2.so.2`** — this
+  appears after upgrading Ubuntu (e.g. to 25.10/26.04), where libxml2 bumped
+  its SONAME to `libxml2.so.16`. An old `telive` binary still points at the
+  gone `libxml2.so.2`. Just re-run `./install.sh`: it now rebuilds telive from
+  scratch so it links against the current library.
+- **Qt warnings `QSocketNotifier…QThread` and `Wayland does not support
+  QWindow::requestActivate()`** — harmless messages from PyQt on Wayland; the
+  panel works normally and you can ignore them.
 - **Need to ask for help?** In the panel, **Log** tab, tick **“Log tecnico
   (mostra tutto)”** (technical log, show everything) and copy what appears,
   or use **“▪ Esporta diagnostica…”** (Export diagnostics…) for a complete

@@ -151,6 +151,17 @@ export TETRA_GR_XMLRPC_URL="http://127.0.0.1:42000/"
 export TETRA_RX_BASEBAND_AUTOCORRECT=0
 export TETRA_AUTO_TUNE=0
 
+# Pre-controllo: se 'telive' è linkato a una libreria non più presente (tipico
+# dopo un upgrade di Ubuntu, es. libxml2.so.2 sostituita da libxml2.so.16),
+# avvisa in modo chiaro invece di lasciare l'errore oscuro del loader.
+if command -v ldd >/dev/null 2>&1 && ldd "$TELIVE_DIR/telive" 2>/dev/null | grep -q 'not found'; then
+  echo "[ERRORE] 'telive' richiede librerie non più presenti su questo sistema:"
+  ldd "$TELIVE_DIR/telive" 2>/dev/null | grep 'not found' | sed 's/^/           /'
+  echo "         Di solito è un upgrade di Ubuntu (es. libxml2.so.2 -> libxml2.so.16)."
+  echo "         Ricompila la catena:  ./install.sh"
+  exit 1
+fi
+
 echo "[avvia] apro telive (premi ? per l'aiuto, q per uscire)"
 echo "        log: $LOG_DIR/flowgraph.log  e  $LOG_DIR/receiver.log"
 sleep 1

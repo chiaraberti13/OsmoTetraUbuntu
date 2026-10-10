@@ -224,6 +224,10 @@ clone_or_update "$TELIVE_REPO" "$TELIVE_DIR"
 # ---------------------------------------------------------------------------
 step "3) Compilo l'osmo receiver (tetra-rx)"
 inject_cflags "$OSMO_DIR/src/Makefile"
+# Ricompilo da zero: un binario rimasto da una build precedente può essere
+# linkato a librerie di sistema poi cambiate (tipico dopo un upgrade di Ubuntu),
+# e make non lo rifarebbe perché lo vede "aggiornato".
+make -C "$OSMO_DIR/src" clean >/dev/null 2>&1 || true
 make -C "$OSMO_DIR/src" -j"$JOBS"
 [ -x "$OSMO_DIR/src/tetra-rx" ] && info "OK: tetra-rx" || { echo "ERRORE: tetra-rx non compilato"; exit 1; }
 
@@ -261,8 +265,23 @@ step "5) Compilo telive"
 inject_cflags "$TELIVE_DIR/Makefile"
 patch_telive_includes
 maybe_patch_nanohttp
+# Ricompilo SEMPRE da zero. Da Ubuntu 25.10/26.04 libxml2 (>= 2.14) ha cambiato
+# la SONAME da libxml2.so.2 a libxml2.so.16 (pacchetto rinominato in
+# libxml2-16). Un binario 'telive' rimasto da una build precedente resta
+# linkato a libxml2.so.2 e all'avvio fallisce con
+#   "libxml2.so.2: cannot open shared object file: No such file or directory".
+# make da solo non lo rifarebbe (lo vede aggiornato): 'make clean' forza il
+# relink contro la libxml2 attualmente installata.
+make -C "$TELIVE_DIR" clean >/dev/null 2>&1 || true
 make -C "$TELIVE_DIR" -j"$JOBS"
 [ -x "$TELIVE_DIR/telive" ] && info "OK: telive" || { echo "ERRORE: telive non compilato"; exit 1; }
+# Controllo finale: nessuna libreria condivisa deve risultare mancante, così un
+# problema di SONAME si vede ora e non al primo avvio.
+if command -v ldd >/dev/null 2>&1 && ldd "$TELIVE_DIR/telive" 2>/dev/null | grep -q 'not found'; then
+  echo "ERRORE: 'telive' è linkato a librerie non presenti su questo sistema:"
+  ldd "$TELIVE_DIR/telive" 2>/dev/null | grep 'not found' | sed 's/^/           /'
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 6) /tetra e binari nel PATH

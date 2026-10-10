@@ -123,7 +123,7 @@ alla fine senza dover già sapere nulla.
 
 ## Requisiti
 
-- **Ubuntu 24.04 o successive** (testato anche su 25.10, x86 e ARM64).
+- **Ubuntu 24.04 o successive** (testato su 24.04, 25.10 e 26.04 "resolute", x86 e ARM64). L'installer adatta nomi dei pacchetti e flag del compilatore alla versione che trova.
 - Una **RTL-SDR** (o altra radio supportata da gr-osmosdr: HackRF, Airspy…).
 - Un'antenna adatta alla banda TETRA che vuoi ricevere.
 - Una connessione Internet per l'installazione (scarica ~1-2 GB fra

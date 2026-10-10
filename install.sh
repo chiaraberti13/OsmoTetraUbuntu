@@ -6,7 +6,9 @@
 #  telive-2, con decifratura vocale a CHIAVE NOTA. In più: il lanciatore
 #  grafico di OsmoTetra e la voce nel menu applicazioni.
 #
-#  Testato su Ubuntu 24.04 (x86) e 25.10 (ARM64/x86).
+#  Compatibile con Ubuntu 24.04, 25.10 e 26.04 "resolute" (x86 e ARM64), e
+#  pensato per adattarsi anche ad altre versioni: i nomi dei pacchetti e i flag
+#  del compilatore vengono scelti a runtime in base a cosa offre il sistema.
 #
 #  Uso:   ./install.sh          (come UTENTE NORMALE, non con sudo)
 #         chiede la password sudo solo per apt e per creare /tetra.
@@ -43,6 +45,43 @@ echo "==== install.sh — $(date '+%Y-%m-%d %H:%M:%S') ===="
 
 step() { echo; echo "============================================================"; echo " $*"; echo "============================================================"; }
 info() { echo "  -> $*"; }
+
+# ---------------------------------------------------------------------------
+# apt robusto e multi-versione
+# ---------------------------------------------------------------------------
+# Il primo tentativo di installazione può trovarsi apt bloccato da un altro
+# processo (aggiornamenti automatici, "unattended-upgrades"): invece di morire
+# subito, chiediamo ad apt di aspettare il lock fino a 600 s. L'opzione
+# DPkg::Lock::Timeout esiste su apt >= 1.9 (Ubuntu 20.04 in poi).
+APT_OPTS=(-o "DPkg::Lock::Timeout=600")
+apt_get() { sudo apt-get "${APT_OPTS[@]}" "$@"; }
+
+# Stampa il primo pacchetto REALMENTE disponibile tra gli alternativi passati.
+# Serve perché i nomi cambiano tra versioni di Ubuntu (es. libncurses-dev vs
+# libncurses5-dev). Se nessuno esiste, stampa il primo: così l'errore di apt
+# resta esplicito invece di sparire in silenzio.
+pick_pkg() {
+  local p
+  for p in "$@"; do
+    if apt-cache show "$p" >/dev/null 2>&1; then echo "$p"; return 0; fi
+  done
+  echo "$1"
+}
+
+# Installa una lista di pacchetti. Prima prova in blocco (veloce); se fallisce
+# — di solito un nome cambiato o assente su questa versione — ripiega su
+# installazione uno-a-uno, così un singolo pacchetto mancante non blocca tutto
+# il resto. Non è fatale di per sé: il controllo vero è sui binari compilati
+# nei passi successivi.
+apt_install() {
+  if apt_get install -y "$@"; then return 0; fi
+  info "Installazione in blocco fallita: ritento pacchetto per pacchetto."
+  local p
+  for p in "$@"; do
+    apt_get install -y "$p" || echo "ATTENZIONE: pacchetto non installato: $p"
+  done
+  return 0
+}
 
 # ---------------------------------------------------------------------------
 # Compatibilità compilatore (GCC 13/14/15): riporta a warning i costrutti C
@@ -128,24 +167,43 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 1
 fi
 step "0) Sistema"
-if ! grep -qiE 'ubuntu|debian' /etc/os-release 2>/dev/null; then
+# Leggo distribuzione e versione da /etc/os-release (file assente/illeggibile
+# non è fatale: proseguo con valori sconosciuti).
+DISTRO_ID=""; DISTRO_VER=""; DISTRO_CODENAME=""
+if [ -r /etc/os-release ]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  DISTRO_ID="${ID:-}"; DISTRO_VER="${VERSION_ID:-}"
+  DISTRO_CODENAME="${VERSION_CODENAME:-${UBUNTU_CODENAME:-}}"
+fi
+if ! printf '%s' "$DISTRO_ID ${ID_LIKE:-}" | grep -qiE 'ubuntu|debian'; then
   echo "ATTENZIONE: distribuzione non Ubuntu/Debian: proseguo ma apt potrebbe non funzionare."
 fi
 info "Utente: $(id -un)   Core: $JOBS   Arch: $(uname -m)   Home OsmoTetra: $OSMOTETRA_HOME"
+info "Sistema: ${DISTRO_ID:-sconosciuto} ${DISTRO_VER:-?} ${DISTRO_CODENAME:+($DISTRO_CODENAME)}"
 
 # ---------------------------------------------------------------------------
 # 1) Dipendenze
 # ---------------------------------------------------------------------------
 step "1) Dipendenze (apt)"
-sudo apt-get update
-sudo apt-get install -y \
+apt_get update || info "apt update non riuscito del tutto: proseguo con la cache esistente."
+
+# Nomi che cambiano tra versioni di Ubuntu: li scelgo a runtime tra gli
+# alternativi, così lo stesso installer va su più release.
+#  - ncurses: libncurses-dev (24.04+) / libncurses5-dev (vecchie).
+#  - usb:     libusb-1.0-0-dev (nome storico) / libusb-1.0-dev (nuovo alias).
+NCURSES_DEV="$(pick_pkg libncurses-dev libncursesw5-dev libncurses5-dev)"
+USB_DEV="$(pick_pkg libusb-1.0-0-dev libusb-1.0-dev)"
+info "Pacchetti scelti per questa versione: $NCURSES_DEV, $USB_DEV"
+
+apt_install \
   build-essential gcc make git pkg-config patch unzip wget ca-certificates \
-  libosmocore-dev libncurses-dev libxml2-dev \
-  librtlsdr-dev rtl-sdr libusb-1.0-0-dev \
+  libosmocore-dev "$NCURSES_DEV" libxml2-dev \
+  librtlsdr-dev rtl-sdr "$USB_DEV" \
   socat alsa-utils sox vorbis-tools \
   gnuradio gr-osmosdr python3-pyqt5 \
   fonts-noto-color-emoji
-info "Dipendenze installate."
+info "Dipendenze installate (eventuali assenze segnalate sopra)."
 COMPAT_CFLAGS="$(detect_compat_cflags)"
 [ -n "$COMPAT_CFLAGS" ] && info "Flag compat compilatore: $COMPAT_CFLAGS"
 

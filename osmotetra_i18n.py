@@ -355,7 +355,6 @@ EN: dict[str, str] = {
         "<b>Key type</b>: usually <b>1</b> (CCK/SCK), or <b>16</b> for a "
         "32-bit shortened TEA1 key (8 digits) padded with zeros up to 20 "
         "digits (80 bit). The <b>key</b> is hex: 20 digits = 80 bit.",
-    "Chiavi": "Keys",
     "20 cifre esadecimali": "20 hex digits",
     "▸  Mostra file generato": "▸  Show generated file",
     "Ricarica dal file": "Reload from file",

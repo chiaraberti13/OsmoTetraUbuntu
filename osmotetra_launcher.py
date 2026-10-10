@@ -1299,7 +1299,12 @@ class Launcher(QWidget):
         return any(word in low for word in cls.LOG_ALERTS)
 
     def _append_log(self, text: str):
-        text = text.rstrip("\n")
+        # Redazione all'ingresso: tetra-rx stampa le chiavi caricate all'avvio e
+        # quelle righe arrivano qui come log grezzo. Ripulendole subito, né la
+        # vista a schermo (log tecnico) né il buffer in memoria trattengono mai
+        # materiale di chiave. È l'invariante del progetto: tutto ciò che entra
+        # nei log passa da redact_keys().
+        text = redact_keys(text.rstrip("\n"))
         important = self._log_important(text)
         self._log_lines.append((important, text))
         if len(self._log_lines) > 4000:

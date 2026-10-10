@@ -31,7 +31,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer, qInstallMessageHandler
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog,
@@ -1600,7 +1600,27 @@ def _terminate(proc):
             pass
 
 
+# Messaggi noti e innocui che Qt stampa su Wayland: non indicano un guasto (il
+# pannello funziona lo stesso), ma allarmano l'utente nel terminale. Li
+# filtriamo in modo chirurgico — solo queste due stringhe — lasciando passare
+# ogni altro messaggio di Qt, che resta utile per la diagnostica. Le stringhe
+# sono in inglese perché così le emette Qt: non sono testo d'interfaccia.
+_QT_MESSAGGI_INNOCUI = (
+    "QSocketNotifier: Can only be used with threads started with QThread",
+    "Wayland does not support QWindow::requestActivate",
+)
+
+
+def _filtra_messaggi_qt(mode, context, message):
+    """Silenzia i warning Qt/Wayland innocui; inoltra tutto il resto a stderr."""
+    if any(frammento in message for frammento in _QT_MESSAGGI_INNOCUI):
+        return
+    sys.stderr.write(message + "\n")
+
+
 def main():
+    # Installato prima di QApplication così intercetta anche i messaggi d'avvio.
+    qInstallMessageHandler(_filtra_messaggi_qt)
     app = QApplication(sys.argv)
     app.setApplicationName("OsmoTetra")
     # 'osmotetra chiavi' apre solo l'editor delle chiavi.

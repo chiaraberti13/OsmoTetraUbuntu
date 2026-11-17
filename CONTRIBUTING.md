@@ -14,12 +14,15 @@ This repository covers guided installation, reception, diagnostics and configura
 
 ### Setup
 ```bash
-git clone https://github.com/chiaraberti13/OsmoTetraUbuntu.git\ncd OsmoTetraUbuntu\nchmod +x install.sh
+git clone https://github.com/chiaraberti13/OsmoTetraUbuntu.git
+cd OsmoTetraUbuntu
+chmod +x install.sh
 ```
 
 ### Checks
 ```bash
-bash -n install.sh\npython -m compileall .
+bash -n install.sh
+python -m compileall .
 ```
 Installation changes should be tested on a disposable Ubuntu environment where possible. Document packages, paths, services and cleanup steps.
 
@@ -41,12 +44,15 @@ Questo repository riguarda guided installation, reception, diagnostics and confi
 
 ### Setup
 ```bash
-git clone https://github.com/chiaraberti13/OsmoTetraUbuntu.git\ncd OsmoTetraUbuntu\nchmod +x install.sh
+git clone https://github.com/chiaraberti13/OsmoTetraUbuntu.git
+cd OsmoTetraUbuntu
+chmod +x install.sh
 ```
 
 ### Controlli
 ```bash
-bash -n install.sh\npython -m compileall .
+bash -n install.sh
+python -m compileall .
 ```
 Installation changes should be tested on a disposable Ubuntu environment where possible. Document packages, paths, services and cleanup steps.
 
@@ -55,3 +61,13 @@ Valida configurazione e input esterni, usa comportamenti fail-safe, conserva pro
 
 ### Pull request
 Descrivi cosa cambia, perché, piattaforme/hardware supportati, test eseguiti, impatto sicurezza/privacy e rollback. Si applica `CODE_OF_CONDUCT.md`.
+
+## Segnalazioni e verifica dei contributi
+
+Ambiente Ubuntu per ricezione e analisi TETRA con installazione guidata.
+
+Usa i [modelli di segnalazione](https://github.com/chiaraberti13/OsmoTetraUbuntu/issues/new/choose) per bug, miglioramenti e barriere di accessibilità. Prima di aprire una nuova segnalazione verifica se ne esiste già una equivalente. Contesto utile: Versione Ubuntu, hardware, versione Python, comando e log anonimizzati.
+
+Per le modifiche, compila il modello di pull request e indica verifiche eseguite, esito e verifiche non eseguite con il motivo. Mantieni le istruzioni specifiche di questo progetto e la parità delle lingue già disponibili. Non allegare dati di produzione, credenziali o dati personali; usa esempi sintetici.
+
+Consulta [il codice di condotta](CODE_OF_CONDUCT.md), [la policy di sicurezza](SECURITY.md) e [le indicazioni di accessibilità](ACCESSIBILITY.md). Le vulnerabilità seguono esclusivamente il percorso descritto nella policy di sicurezza.

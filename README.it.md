@@ -36,3 +36,12 @@ Consulta il [manuale completo](docs/manual.it.md) per requisiti, comandi, legend
 ## Uso responsabile
 
 Utilizza il progetto esclusivamente nel rispetto della normativa e su sistemi, hardware e segnali per i quali possiedi un’autorizzazione valida.
+
+## Comunità e collaborazione
+
+- [Come contribuire](CONTRIBUTING.md)
+- [Codice di condotta](CODE_OF_CONDUCT.md)
+- [Segnalazioni di sicurezza](SECURITY.md)
+- [Accessibilità e limiti delle verifiche](ACCESSIBILITY.md)
+- [Segnalare un problema o proporre un miglioramento](https://github.com/chiaraberti13/OsmoTetraUbuntu/issues/new/choose)
+- [Licenza del progetto](LICENSE)
